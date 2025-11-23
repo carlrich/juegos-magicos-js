@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pequeño Artista</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Fredoka', sans-serif; }
+
+    /* Fondo animado estilo papel tapiz */
+    .art-bg {
+      background-color: #f3f4f6;
+      background-image: radial-gradient(#e5e7eb 2px, transparent 2px);
+      background-size: 30px 30px;
+    }
+
+    /* Contenedor del dibujo (Lienzo) */
+    .canvas-card {
+      transition: transform 0.3s ease;
+      background: white;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    }
+
+    /* Animación al pintar una zona */
+    .paint-anim {
+      animation: paintPop 0.3s ease-out;
+    }
+    @keyframes paintPop {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    /* Estilo de los botes de pintura */
+    .paint-pot {
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      border: 4px solid white;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .paint-pot:hover {
+      transform: translateY(-5px) scale(1.1);
+    }
+    .paint-pot.selected {
+      transform: translateY(-8px) scale(1.1);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+      border-color: #3b82f6; /* Borde azul al seleccionar */
+    }
+
+    /* Cursores personalizados */
+    .cursor-brush { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>') 0 24, auto; } /* Fallback simple */
+    
+    /* Zonas pintables */
+    svg path, svg circle, svg rect, svg ellipse, svg polygon {
+      transition: fill 0.3s ease;
+      cursor: crosshair;
+    }
+    svg *:hover {
+      filter: brightness(0.95); /* Sutil oscurecimiento al pasar el mouse */
+    }
+  </style>
+</head>
+
+<body class="art-bg min-h-screen flex flex-col items-center p-6">
+
+  <div class="w-full max-w-4xl flex justify-between items-center mb-6">
+    <a href="../index.html" class="bg-white text-gray-600 hover:text-blue-600 px-4 py-2 rounded-xl font-bold shadow-sm transition flex items-center gap-2">
+      ⬅ Volver
+    </a>
+    <div class="bg-white px-6 py-2 rounded-xl shadow-sm">
+      <h1 class="text-2xl font-bold text-gray-700">🎨 Estudio de Arte - Nivel <span id="levelDisplay">1</span></h1>
+    </div>
+    <button onclick="resetDrawing()" class="bg-white text-red-500 hover:text-red-600 px-4 py-2 rounded-xl font-bold shadow-sm transition">
+      🗑️ Borrar
+    </button>
+  </div>
+
+  <div class="flex flex-col md:flex-row gap-8 items-start max-w-5xl w-full">
+    
+    <div class="flex-1 flex justify-center w-full">
+      <div id="drawingContainer" class="canvas-card rounded-3xl p-8 border-8 border-white w-full max-w-[500px] aspect-square flex items-center justify-center relative">
+        <span class="text-gray-300 absolute">Cargando lienzo...</span>
+      </div>
+    </div>
+
+    <div class="bg-white/80 backdrop-blur rounded-3xl p-6 shadow-xl border border-white/50 w-full md:w-auto">
+      <p class="text-center text-gray-500 font-bold mb-4 text-sm uppercase tracking-wider">Elige un color</p>
+      
+      <div class="grid grid-cols-4 md:grid-cols-2 gap-4" id="palette">
+        <div class="paint-pot w-12 h-12 rounded-full bg-red-500 cursor-pointer" data-color="#ef4444"></div>
+        <div class="paint-pot w-12 h-12 rounded-full bg-orange-400 cursor-pointer" data-color="#fb923c"></div>
+        <div class="paint-pot w-12 h-12 rounded-full bg-yellow-400 cursor-pointer" data-color="#facc15"></div>
+        <div class="paint-pot w-12 h-12 rounded-full bg-green-500 cursor-pointer" data-color="#22c55e"></div>
+        <div class="paint-pot w-12 h-12 rounded-full bg-teal-400 cursor-pointer" data-color="#2dd4bf"></div>
+        <div class="paint-pot w-12 h-12 rounded-full bg-blue-500 cursor-pointer" data-color="#3b82f6"></div>
+        <div class="paint-pot w-12 h-12 rounded-full bg-purple-500 cursor-pointer" data-color="#a855f7"></div>
+        <div class="paint-pot w-12 h-12 rounded-full bg-pink-400 cursor-pointer" data-color="#f472b6"></div>
+        <div class="paint-pot w-12 h-12 rounded-full bg-amber-700 cursor-pointer" data-color="#b45309"></div>
+        <div class="paint-pot w-12 h-12 rounded-full bg-gray-800 cursor-pointer" data-color="#1f2937"></div>
+        <div class="paint-pot w-12 h-12 rounded-full bg-white cursor-pointer border-gray-200 relative" data-color="white" title="Borrador">
+           <span class="absolute inset-0 flex items-center justify-center text-xs">🧼</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // --- SONIDO ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      const now = audioCtx.currentTime;
+
+      if (type === 'paint') {
+        // Sonido "bloop" suave
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+        osc.start(now);
+        osc.stop(now + 0.15);
+      } else if (type === 'select') {
+        // Sonido "click" agudo
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(600, now);
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.05);
+        osc.start(now);
+        osc.stop(now + 0.05);
+      }
+    }
+
+    // --- VARIABLES ---
+    let selectedColor = null; // Empezamos sin color seleccionado
+    let currentLevel = 1;
+    const maxLevels = 3;
+
+    // --- DIBUJOS SVG (Optimizados con stroke-linecap round para que se vean bonitos) ---
+    // NOTA: Todos los elementos pintables deben tener fill="white" explícito.
+    const drawings = {
+      1: `
+        <svg width="100%" height="100%" viewBox="0 0 300 300" style="max-height: 400px;">
+          <circle id="oreja1" cx="90" cy="80" r="35" fill="white" stroke="#374151" stroke-width="6"/>
+          <circle id="oreja2" cx="210" cy="80" r="35" fill="white" stroke="#374151" stroke-width="6"/>
+          <circle id="cara" cx="150" cy="150" r="100" fill="white" stroke="#374151" stroke-width="6"/>
+          <circle id="ojo1" cx="115" cy="140" r="15" fill="white" stroke="#374151" stroke-width="4"/>
+          <circle id="ojo2" cx="185" cy="140" r="15" fill="white" stroke="#374151" stroke-width="4"/>
+          <circle cx="115" cy="140" r="5" fill="black" class="pointer-events-none"/>
+          <circle cx="185" cy="140" r="5" fill="black" class="pointer-events-none"/>
+          <ellipse id="hocico" cx="150" cy="190" rx="40" ry="30" fill="white" stroke="#374151" stroke-width="4"/>
+          <circle id="nariz" cx="150" cy="180" r="10" fill="white" stroke="#374151" stroke-width="4"/>
+          <path d="M130 205 Q150 220 170 205" fill="none" stroke="#374151" stroke-width="4" stroke-linecap="round" class="pointer-events-none"/>
+        </svg>
+      `,
+      2: `
+        <svg width="100%" height="100%" viewBox="0 0 300 300" style="max-height: 400px;">
+          <rect id="tallo" x="140" y="150" width="20" height="100" fill="white" stroke="#374151" stroke-width="5"/>
+          <circle id="p1" cx="150" cy="80" r="45" fill="white" stroke="#374151" stroke-width="5"/>
+          <circle id="p2" cx="220" cy="120" r="45" fill="white" stroke="#374151" stroke-width="5"/>
+          <circle id="p3" cx="220" cy="200" r="45" fill="white" stroke="#374151" stroke-width="5"/>
+          <circle id="p4" cx="150" cy="240" r="45" fill="white" stroke="#374151" stroke-width="5"/>
+          <circle id="p5" cx="80" cy="200" r="45" fill="white" stroke="#374151" stroke-width="5"/>
+          <circle id="p6" cx="80" cy="120" r="45" fill="white" stroke="#374151" stroke-width="5"/>
+          <circle id="centro" cx="150" cy="160" r="35" fill="white" stroke="#374151" stroke-width="5"/>
+        </svg>
+      `,
+      3: `
+        <svg width="100%" height="100%" viewBox="0 0 300 300" style="max-height: 400px;">
+          <rect id="chimenea" x="190" y="50" width="30" height="60" fill="white" stroke="#374151" stroke-width="5"/>
+          <rect id="paredes" x="60" y="130" width="180" height="130" fill="white" stroke="#374151" stroke-width="5"/>
+          <polygon id="techo" points="40,130 150,40 260,130" fill="white" stroke="#374151" stroke-width="5" stroke-linejoin="round"/>
+          <rect id="puerta" x="130" y="180" width="40" height="80" fill="white" stroke="#374151" stroke-width="5"/>
+          <circle id="manija" cx="160" cy="220" r="4" fill="white" stroke="#374151" stroke-width="3"/>
+          <rect id="ventana1" x="80" y="160" width="30" height="30" fill="white" stroke="#374151" stroke-width="4"/>
+          <rect id="ventana2" x="190" y="160" width="30" height="30" fill="white" stroke="#374151" stroke-width="4"/>
+        </svg>
+      `
+    };
+
+    // --- LÓGICA ---
+    function loadLevel() {
+      const container = document.getElementById("drawingContainer");
+      document.getElementById("levelDisplay").innerText = currentLevel;
+      
+      container.innerHTML = drawings[currentLevel];
+
+      const svg = container.querySelector("svg");
+      
+      // Añadir eventos a cada parte pintable
+      // Excluímos elementos con clase 'pointer-events-none' (como líneas negras de detalle)
+      svg.querySelectorAll("*:not(.pointer-events-none)").forEach(part => {
+        if (part instanceof SVGElement) {
+          
+          part.addEventListener("click", () => {
+            if (selectedColor) {
+              // Pintar
+              part.setAttribute("fill", selectedColor);
+              playSound('paint');
+              
+              // Animación visual pequeña
+              part.classList.remove('paint-anim');
+              void part.offsetWidth; // Trigger reflow
+              part.classList.add('paint-anim');
+
+              checkCompletion(svg);
+            } else {
+              // Si no ha seleccionado color, avisar suavemente
+              Swal.fire({
+                toast: true,
+                position: 'top-end',
+                icon: 'info',
+                title: '¡Elige un color primero!',
+                showConfirmButton: false,
+                timer: 1500
+              });
+            }
+          });
+        }
+      });
+    }
+
+    function resetDrawing() {
+      const svg = document.querySelector("#drawingContainer svg");
+      svg.querySelectorAll("*:not(.pointer-events-none)").forEach(part => {
+         part.setAttribute("fill", "white");
+      });
+    }
+
+    function checkCompletion(svg) {
+      // Contamos cuántas partes pintables hay y cuántas siguen blancas
+      const allParts = [...svg.querySelectorAll("*:not(.pointer-events-none)")];
+      const unpainted = allParts.filter(el => el.getAttribute("fill") === "white");
+
+      // Si quedan 0 partes blancas, ¡terminó!
+      if (unpainted.length === 0) {
+        // Confeti
+        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+        
+        // Alerta
+        Swal.fire({
+          title: "¡Obra Maestra! 🎨✨",
+          text: "¡Te ha quedado precioso!",
+          icon: "success",
+          confirmButtonText: "Siguiente Dibujo",
+          confirmButtonColor: "#3b82f6",
+          backdrop: `rgba(0,0,123,0.1)`
+        }).then(() => {
+          currentLevel++;
+          if (currentLevel > maxLevels) {
+            Swal.fire({
+              title: "¡Eres un Gran Artista! 🏆",
+              text: "Has completado todos los dibujos.",
+              icon: "success",
+              confirmButtonText: "Volver al Menú"
+            }).then(() => {
+              window.location.href = "../index.html"; // Ajusta tu ruta
+            });
+          } else {
+            loadLevel();
+          }
+        });
+      }
+    }
+
+    // --- SELECCIÓN DE COLOR ---
+    document.querySelectorAll(".paint-pot").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const color = btn.dataset.color;
+        selectedColor = color;
+        playSound('select');
+
+        // Visual: marcar seleccionado
+        document.querySelectorAll(".paint-pot").forEach(b => b.classList.remove("selected"));
+        btn.classList.add("selected");
+      });
+    });
+
+    // Iniciar
+    loadLevel();
+
+  </script>
+</body>
+</html>

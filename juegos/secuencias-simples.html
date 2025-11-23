@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>El Coro de Animales</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Fredoka', sans-serif; }
+    
+    /* Efecto de brillo cuando se activa un botón */
+    .active-btn {
+      filter: brightness(1.3) drop-shadow(0 0 15px rgba(255,255,255,0.8));
+      transform: scale(0.95);
+    }
+    
+    /* Animación suave para los botones */
+    .animal-btn {
+      transition: all 0.1s ease-out;
+    }
+
+    /* Fondo animado suave */
+    @keyframes gradient {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .bg-animated {
+      background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+      background-size: 400% 400%;
+      animation: gradient 15s ease infinite;
+    }
+  </style>
+</head>
+<body class="bg-animated min-h-screen flex items-center justify-center p-4">
+
+  <div class="bg-white/90 backdrop-blur-sm p-6 md:p-10 rounded-3xl shadow-2xl max-w-lg w-full text-center border-4 border-white/50">
+    
+    <div class="mb-6">
+      <h1 class="text-3xl font-bold text-gray-800 mb-2">🎶 El Coro Musical</h1>
+      <p class="text-gray-600">Repite la canción de los animales</p>
+      
+      <div class="mt-4 flex justify-center gap-4 text-sm font-bold">
+        <div class="bg-blue-100 text-blue-600 px-4 py-1 rounded-full">
+          Ronda: <span id="ronda-display">0</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 mb-8" id="tablero">
+      
+      <button id="btn-0" onclick="inputUsuario(0)" class="animal-btn bg-green-400 border-b-8 border-green-600 rounded-2xl p-6 aspect-square flex flex-col items-center justify-center group disabled:opacity-50 disabled:cursor-not-allowed">
+        <span class="text-5xl mb-2 group-hover:-translate-y-2 transition-transform">🐸</span>
+      </button>
+
+      <button id="btn-1" onclick="inputUsuario(1)" class="animal-btn bg-red-400 border-b-8 border-red-600 rounded-2xl p-6 aspect-square flex flex-col items-center justify-center group disabled:opacity-50 disabled:cursor-not-allowed">
+        <span class="text-5xl mb-2 group-hover:-translate-y-2 transition-transform">🐷</span>
+      </button>
+
+      <button id="btn-2" onclick="inputUsuario(2)" class="animal-btn bg-yellow-400 border-b-8 border-yellow-600 rounded-2xl p-6 aspect-square flex flex-col items-center justify-center group disabled:opacity-50 disabled:cursor-not-allowed">
+        <span class="text-5xl mb-2 group-hover:-translate-y-2 transition-transform">🐱</span>
+      </button>
+
+      <button id="btn-3" onclick="inputUsuario(3)" class="animal-btn bg-blue-400 border-b-8 border-blue-600 rounded-2xl p-6 aspect-square flex flex-col items-center justify-center group disabled:opacity-50 disabled:cursor-not-allowed">
+        <span class="text-5xl mb-2 group-hover:-translate-y-2 transition-transform">🐶</span>
+      </button>
+
+    </div>
+
+    <button id="btn-start" onclick="iniciarJuego()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-4 rounded-xl text-xl shadow-lg transition active:scale-95">
+      ▶️ ¡Comenzar!
+    </button>
+    
+    <a href="../index.html" class="block mt-4 text-gray-500 hover:text-gray-800 text-sm underline">⬅ Volver al menú</a>
+
+  </div>
+
+  <script>
+    // --- VARIABLES DEL JUEGO ---
+    let secuenciaMaquina = [];
+    let secuenciaJugador = [];
+    let ronda = 0;
+    let bloqueado = true; // Bloquea clicks mientras la máquina toca
+    
+    // Frecuencias para las notas (Do, Mi, Sol, Do alto) - Sonidos agradables
+    const notas = [261.63, 329.63, 392.00, 523.25]; 
+    let audioCtx = null;
+
+    // --- SISTEMA DE AUDIO (Web Audio API) ---
+    // Esto crea sonido sin necesitar archivos mp3 externos
+    function inicializarAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function tocarNota(indice) {
+      if (!audioCtx) inicializarAudio();
+      
+      // Crear oscilador (generador de sonido)
+      const osc = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+
+      osc.type = 'sine'; // Sonido suave tipo flauta/piano
+      osc.frequency.setValueAtTime(notas[indice], audioCtx.currentTime);
+      
+      // Efecto de desvanecimiento (para que no suene "seco")
+      gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+
+      osc.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.5);
+    }
+
+    function tocarError() {
+      if (!audioCtx) inicializarAudio();
+      const osc = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      osc.type = 'sawtooth'; // Sonido rasposo
+      osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+      osc.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.3);
+      
+      gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+
+      osc.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.3);
+    }
+
+    // --- LÓGICA VISUAL ---
+    function iluminarBoton(indice) {
+      const btn = document.getElementById(`btn-${indice}`);
+      btn.classList.add('active-btn');
+      tocarNota(indice);
+      
+      setTimeout(() => {
+        btn.classList.remove('active-btn');
+      }, 300); // Tiempo que se queda encendido
+    }
+
+    // --- LÓGICA DEL JUEGO ---
+    
+    function iniciarJuego() {
+      inicializarAudio(); // Importante: el audio debe iniciarse con una acción del usuario
+      secuenciaMaquina = [];
+      secuenciaJugador = [];
+      ronda = 0;
+      document.getElementById('btn-start').classList.add('hidden'); // Ocultar botón start
+      bloquearTablero(true);
+      siguienteRonda();
+    }
+
+    function siguienteRonda() {
+      ronda++;
+      document.getElementById('ronda-display').innerText = ronda;
+      secuenciaJugador = [];
+      
+      // Añadir un paso nuevo aleatorio (0 a 3)
+      secuenciaMaquina.push(Math.floor(Math.random() * 4));
+
+      // Reproducir la secuencia completa
+      bloquearTablero(true);
+      
+      let delay = 500;
+      
+      secuenciaMaquina.forEach((paso, index) => {
+        setTimeout(() => {
+          iluminarBoton(paso);
+        }, delay);
+        // Cada paso tarda 800ms en sonar el siguiente
+        delay += 800; 
+      });
+
+      // Desbloquear para que el jugador repita
+      setTimeout(() => {
+        bloquearTablero(false);
+        mensajeTurno("¡Tu turno!");
+      }, delay);
+    }
+
+    function inputUsuario(indice) {
+      if (bloqueado) return;
+
+      iluminarBoton(indice);
+      secuenciaJugador.push(indice);
+
+      // Verificar paso a paso (en tiempo real)
+      const pasoActual = secuenciaJugador.length - 1;
+
+      if (secuenciaJugador[pasoActual] !== secuenciaMaquina[pasoActual]) {
+        gameOver();
+        return;
+      }
+
+      // Si completó la secuencia correctamente
+      if (secuenciaJugador.length === secuenciaMaquina.length) {
+        bloquearTablero(true);
+        setTimeout(siguienteRonda, 1000); // Esperar un poco antes de la siguiente ronda
+      }
+    }
+
+    function gameOver() {
+      bloquearTablero(true);
+      tocarError();
+      
+      Swal.fire({
+        title: '¡Oh no! 🙈',
+        text: `Llegaste hasta la ronda ${ronda}. ¡Inténtalo de nuevo!`,
+        icon: 'warning',
+        confirmButtonText: 'Reiniciar',
+        confirmButtonColor: '#f59e0b'
+      }).then(() => {
+        document.getElementById('btn-start').classList.remove('hidden');
+        document.getElementById('btn-start').innerText = "🔄 Intentar de Nuevo";
+        document.getElementById('ronda-display').innerText = "0";
+      });
+    }
+
+    // Utilidades
+    function bloquearTablero(estado) {
+      bloqueado = estado;
+      const botones = document.querySelectorAll('.animal-btn');
+      botones.forEach(btn => {
+        btn.disabled = estado;
+        if(estado) {
+            btn.classList.add('opacity-80', 'cursor-not-allowed');
+            btn.classList.remove('cursor-pointer');
+        } else {
+            btn.classList.remove('opacity-80', 'cursor-not-allowed');
+            btn.classList.add('cursor-pointer');
+        }
+      });
+    }
+    
+    function mensajeTurno(msg) {
+      // Opcional: Podrías mostrar un toast o mensaje pequeño
+      // console.log(msg);
+    }
+
+  </script>
+</body>
+</html>

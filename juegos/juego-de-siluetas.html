@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Misión Siluetas</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      font-family: 'Fredoka', sans-serif;
+      background-color: #0f172a; /* Fondo nocturno */
+      overflow: hidden; /* Evitar scrollbars durante el juego */
+      cursor: none; /* OCULTAMOS EL CURSOR NORMAL */
+    }
+
+    /* El área del juego */
+    #game-arena {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+    }
+
+    /* Los objetos flotantes */
+    .floating-item {
+      position: absolute;
+      font-size: 4rem;
+      user-select: none;
+      /* Por defecto son siluetas negras y borrosas */
+      filter: brightness(0) blur(2px); 
+      transition: filter 0.2s ease-out, transform 0.2s;
+      will-change: transform, left, top;
+      cursor: pointer;
+    }
+
+    /* Cuando el escáner pasa por encima (usando una clase JS) */
+    .floating-item.revealed {
+      filter: brightness(1) blur(0); /* Se ven a todo color y nítidos */
+      z-index: 10; /* Se ponen por encima */
+      transform: scale(1.1);
+    }
+
+    /* La Luz del Escáner */
+    #scanner-light {
+      position: fixed; /* CAMBIO: De absolute a fixed */
+      top: 0;
+      left: 0;
+      width: 150px;
+      height: 150px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(139, 92, 246, 0.3) 0%, rgba(139, 92, 246, 0.1) 50%, transparent 70%);
+      box-shadow: 0 0 30px rgba(139, 92, 246, 0.4), inset 0 0 20px rgba(167, 139, 250, 0.5);
+      pointer-events: none; 
+      transform: translate(-50%, -50%);
+      z-index: 9999; /* CAMBIO: Un número muy alto para que nada lo tape */
+      mix-blend-mode: screen;
+    }
+
+    /* UI Superior */
+    .ui-panel {
+      backdrop-filter: blur(10px);
+      background-color: rgba(255, 255, 255, 0.1);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="scanner-light"></div>
+
+  <div class="fixed top-0 left-0 w-full p-4 flex justify-between items-center z-30 pointer-events-none">
+    <a href="../index.html" class="pointer-events-auto bg-white/20 hover:bg-white/40 text-white px-4 py-2 rounded-full text-sm transition">
+      ⬅ Salir
+    </a>
+    
+    <div class="ui-panel rounded-2xl px-6 py-3 text-white flex items-center gap-4 border border-white/20 shadow-lg">
+      <div class="text-center">
+        <p class="text-xs uppercase tracking-wider opacity-70">Busca:</p>
+        <div class="text-4xl animate-bounce" id="target-icon">🦄</div>
+      </div>
+      <div class="h-10 w-px bg-white/20"></div>
+      <div class="text-center w-24">
+        <p class="text-xs uppercase tracking-wider opacity-70">Tiempo:</p>
+        <p class="text-3xl font-bold text-purple-300" id="timer">30s</p>
+      </div>
+    </div>
+    <div class="w-20"></div> </div>
+
+  <div id="game-arena"></div>
+
+
+  <script>
+    // --- CONFIGURACIÓN ---
+    // Lista de posibles objetos para buscar y distraer
+    const objetosDB = [
+      '🦄', '🦖', '👾', '🤖', '🎃', '👽', '🤡', '👻',
+      '🦁', '🐯', '🐻', '🐨', '🐼', '🦊', '🦋', '🐝',
+      '🍄', '🌺', '🌻', '🌲', '🌵', '🍉', '🍇', '🍓',
+      '🚗', '🚀', '🚁', '🚂', '⛵', '⛄', '🍦', '🍭'
+    ];
+
+    const gameArena = document.getElementById('game-arena');
+    const scanner = document.getElementById('scanner-light');
+    let itemsFlotantes = [];
+    let objetivoActual = '';
+    let tiempoRestante = 30;
+    let timerInterval;
+    let animationFrameId;
+    let juegoActivo = false;
+
+    // Iniciar el juego
+    iniciarNivel();
+
+    function iniciarNivel() {
+      juegoActivo = true;
+      gameArena.innerHTML = '<div id="scanner-light"></div>'; // Limpiar y volver a poner el scanner
+      itemsFlotantes = [];
+      tiempoRestante = 30;
+      actualizarTimerUI();
+
+      // 1. Elegir objetivo
+      objetivoActual = objetosDB[Math.floor(Math.random() * objetosDB.length)];
+      document.getElementById('target-icon').innerText = objetivoActual;
+
+      // 2. Crear distractores + 1 objetivo
+      const totalItems = 25; // ¡Muchos objetos para que sea difícil!
+      
+      for (let i = 0; i < totalItems; i++) {
+        // El primer item es el objetivo, el resto distractores
+        const emoji = (i === 0) ? objetivoActual : objetosDB[Math.floor(Math.random() * objetosDB.length)];
+        crearItemFlotante(emoji, i === 0);
+      }
+
+      // 3. Iniciar bucles
+      clearInterval(timerInterval);
+      timerInterval = setInterval(gameTimer, 1000);
+      
+      cancelAnimationFrame(animationFrameId);
+      animarItems();
+    }
+
+    function crearItemFlotante(emoji, esObjetivo) {
+      const el = document.createElement('div');
+      el.innerText = emoji;
+      el.className = 'floating-item';
+      
+      // Posición inicial aleatoria
+      let posX = Math.random() * (window.innerWidth - 100);
+      let posY = Math.random() * (window.innerHeight - 100);
+      
+      // Velocidad aleatoria (dx, dy)
+      let dx = (Math.random() - 0.5) * 4; // Velocidad entre -2 y 2
+      let dy = (Math.random() - 0.5) * 4;
+      
+      el.style.left = `${posX}px`;
+      el.style.top = `${posY}px`;
+      
+      // Datos para la animación
+      el.dataset.posX = posX;
+      el.dataset.posY = posY;
+      el.dataset.dx = dx;
+      el.dataset.dy = dy;
+
+      el.onclick = () => verificarClick(emoji, esObjetivo);
+      
+      gameArena.appendChild(el);
+      itemsFlotantes.push(el);
+    }
+
+    // --- BUCLE DE ANIMACIÓN (Movemos los objetos) ---
+    function animarItems() {
+      if (!juegoActivo) return;
+
+      itemsFlotantes.forEach(el => {
+        let posX = parseFloat(el.dataset.posX);
+        let posY = parseFloat(el.dataset.posY);
+        let dx = parseFloat(el.dataset.dx);
+        let dy = parseFloat(el.dataset.dy);
+
+        // Mover
+        posX += dx;
+        posY += dy;
+
+        // Rebotar en los bordes
+        if (posX <= 0 || posX >= window.innerWidth - 80) dx *= -1;
+        if (posY <= 0 || posY >= window.innerHeight - 80) dy *= -1;
+
+        // Guardar nueva posición y velocidad
+        el.dataset.posX = posX;
+        el.dataset.posY = posY;
+        el.dataset.dx = dx;
+        el.dataset.dy = dy;
+        
+        el.style.left = `${posX}px`;
+        el.style.top = `${posY}px`;
+
+        // --- Detección de "Luz" ---
+        // Comprobamos si el centro de la luz está cerca del centro del objeto
+        const rect = el.getBoundingClientRect();
+        const itemCenterX = rect.left + rect.width / 2;
+        const itemCenterY = rect.top + rect.height / 2;
+        
+        // Distancia entre el mouse y el objeto (usamos pitágoras simple)
+        const dist = Math.hypot(mouseX - itemCenterX, mouseY - itemCenterY);
+
+        // Si está a menos de 100px del centro de la luz, ¡REVELAR!
+        if (dist < 100) {
+            el.classList.add('revealed');
+        } else {
+            el.classList.remove('revealed');
+        }
+      });
+
+      animationFrameId = requestAnimationFrame(animarItems);
+    }
+
+    // --- MOUSE TRACKER (Mueve la linterna) ---
+    let mouseX = window.innerWidth / 2;
+    let mouseY = window.innerHeight / 2;
+
+    document.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+        // Movemos el div de la luz usando transform (más eficiente)
+        scanner.style.transform = `translate(${mouseX}px, ${mouseY}px) translate(-50%, -50%)`;
+    });
+
+
+    // --- LÓGICA DEL JUEGO ---
+
+    function verificarClick(emojiClicked, esObjetivo) {
+      if (!juegoActivo) return;
+
+      if (esObjetivo) {
+        gameOver(true);
+      } else {
+        // Penalización por click incorrecto
+        tiempoRestante -= 5;
+        actualizarTimerUI();
+        // Efecto visual de error
+        gameArena.classList.add('bg-red-900/20');
+        setTimeout(() => gameArena.classList.remove('bg-red-900/20'), 200);
+        
+        if (tiempoRestante <= 0) gameOver(false);
+      }
+    }
+
+    function gameTimer() {
+      tiempoRestante--;
+      actualizarTimerUI();
+      if (tiempoRestante <= 0) {
+        gameOver(false);
+      }
+    }
+
+    function actualizarTimerUI() {
+        const timerEl = document.getElementById('timer');
+        timerEl.innerText = `${Math.max(0, tiempoRestante)}s`;
+        if(tiempoRestante <= 10) timerEl.classList.add('text-red-400', 'animate-pulse');
+        else timerEl.classList.remove('text-red-400', 'animate-pulse');
+    }
+
+    function gameOver(ganaste) {
+      juegoActivo = false;
+      clearInterval(timerInterval);
+      cancelAnimationFrame(animationFrameId);
+      document.body.style.cursor = 'default'; // Restaurar cursor
+
+      Swal.fire({
+        title: ganaste ? '¡Lo Encontraste! 🎉' : '¡Tiempo Agotado! 🌑',
+        text: ganaste ? `¡Qué vista de lince! Has encontrado al ${objetivoActual}.` : 'Las sombras ganaron esta vez...',
+        icon: ganaste ? 'success' : 'error',
+        confirmButtonText: 'Jugar de nuevo',
+        confirmButtonColor: ganaste ? '#8b5cf6' : '#334155',
+        background: '#1e293b',
+        color: '#fff'
+      }).then(() => {
+        document.body.style.cursor = 'none'; // Ocultar cursor otra vez
+        iniciarNivel();
+      });
+    }
+
+  </script>
+</body>
+</html>

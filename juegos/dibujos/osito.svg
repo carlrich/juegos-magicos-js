@@ -1,0 +1,11 @@
+<svg width="100%" height="100%" viewBox="0 0 300 300" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="300" height="300" fill="#BDE0FE"></rect>
+  <g transform="translate(50 40)">
+    <circle cx="50" cy="60" r="35" fill="#D9A86C"></circle>
+    <circle cx="150" cy="60" r="35" fill="#D9A86C"></circle>
+    <circle cx="100" cy="120" r="70" fill="#D9A86C"></circle>
+    <circle cx="80" cy="110" r="10" fill="#000"></circle>
+    <circle cx="120" cy="110" r="10" fill="#000"></circle>
+    <circle cx="100" cy="140" r="20" fill="#FF6F91"></circle>
+  </g>
+</svg>

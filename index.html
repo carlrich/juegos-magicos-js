@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mundo de Juegos</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Fredoka', sans-serif; }
+    
+    /* Animación suave del fondo */
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .bg-animated {
+      background: linear-gradient(-45deg, #fdfbfb, #ebedee, #f3e7e9, #e3eeff);
+      background-size: 400% 400%;
+      animation: gradientBG 15s ease infinite;
+    }
+
+    /* Efecto de entrada de las tarjetas */
+    .card-enter {
+      animation: slideUp 0.5s ease-out forwards;
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    @keyframes slideUp {
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="bg-animated min-h-screen py-10 px-4 sm:px-8 text-gray-800">
+
+  <header class="max-w-6xl mx-auto text-center mb-12">
+    <div class="inline-block p-4 rounded-full bg-white/50 backdrop-blur-sm shadow-sm mb-4 animate-bounce">
+      🎮
+    </div>
+    <h1 class="text-4xl md:text-6xl font-bold text-indigo-600 mb-4 tracking-tight drop-shadow-sm">
+      Zona de Juegos
+    </h1>
+    <p class="text-lg md:text-xl text-gray-500 font-medium max-w-2xl mx-auto">
+      ¡Aprende, juega y diviértete! Elige tu aventura favorita.
+    </p>
+  </header>
+
+  <main class="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+
+    <a href="./juegos/memoria.html" class="group bg-white rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-b-4 border-purple-100 hover:border-purple-400 card-enter" style="animation-delay: 0ms;">
+      <div class="w-20 h-20 bg-purple-50 rounded-2xl flex items-center justify-center text-5xl mb-4 group-hover:scale-110 transition-transform duration-300 shadow-inner mx-auto">
+        🧠
+      </div>
+      <h2 class="text-2xl font-bold text-center text-gray-800 mb-2 group-hover:text-purple-600">Memoria</h2>
+      <p class="text-gray-500 text-center text-sm leading-relaxed">Encuentra los pares de cartas iguales antes de que se acabe el tiempo.</p>
+    </a>
+
+    <a href="./juegos/encuentra-la-imagen.html" class="group bg-white rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-b-4 border-blue-100 hover:border-blue-400 card-enter" style="animation-delay: 50ms;">
+      <div class="w-20 h-20 bg-blue-50 rounded-2xl flex items-center justify-center text-5xl mb-4 group-hover:scale-110 transition-transform duration-300 shadow-inner mx-auto">
+        🔍
+      </div>
+      <h2 class="text-2xl font-bold text-center text-gray-800 mb-2 group-hover:text-blue-600">Buscador</h2>
+      <p class="text-gray-500 text-center text-sm leading-relaxed">Agudiza tu vista y encuentra el objeto oculto entre las opciones.</p>
+    </a>
+
+    <a href="./juegos/colorear-dibujos.html" class="group bg-white rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-b-4 border-pink-100 hover:border-pink-400 card-enter" style="animation-delay: 100ms;">
+      <div class="w-20 h-20 bg-pink-50 rounded-2xl flex items-center justify-center text-5xl mb-4 group-hover:scale-110 transition-transform duration-300 shadow-inner mx-auto">
+        🎨
+      </div>
+      <h2 class="text-2xl font-bold text-center text-gray-800 mb-2 group-hover:text-pink-600">Arte y Color</h2>
+      <p class="text-gray-500 text-center text-sm leading-relaxed">Saca el artista que llevas dentro y llena de vida los dibujos.</p>
+    </a>
+
+    <a href="./juegos/rompecabezas.html" class="group bg-white rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-b-4 border-orange-100 hover:border-orange-400 card-enter" style="animation-delay: 150ms;">
+      <div class="w-20 h-20 bg-orange-50 rounded-2xl flex items-center justify-center text-5xl mb-4 group-hover:scale-110 transition-transform duration-300 shadow-inner mx-auto">
+        🧩
+      </div>
+      <h2 class="text-2xl font-bold text-center text-gray-800 mb-2 group-hover:text-orange-600">Rompecabezas</h2>
+      <p class="text-gray-500 text-center text-sm leading-relaxed">Une las piezas correctamente para revelar la imagen sorpresa.</p>
+    </a>
+
+    <a href="./juegos/arrastra-y-suelta.html" class="group bg-white rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-b-4 border-green-100 hover:border-green-400 card-enter" style="animation-delay: 200ms;">
+      <div class="w-20 h-20 bg-green-50 rounded-2xl flex items-center justify-center text-5xl mb-4 group-hover:scale-110 transition-transform duration-300 shadow-inner mx-auto">
+        🧸
+      </div>
+      <h2 class="text-2xl font-bold text-center text-gray-800 mb-2 group-hover:text-green-600">Organizador</h2>
+      <p class="text-gray-500 text-center text-sm leading-relaxed">Pon cada cosa en su lugar. ¡Aprende a clasificar objetos!</p>
+    </a>
+
+    <a href="./juegos/cuenta-los-objetos.html" class="group bg-white rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-b-4 border-red-100 hover:border-red-400 card-enter" style="animation-delay: 250ms;">
+      <div class="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center text-5xl mb-4 group-hover:scale-110 transition-transform duration-300 shadow-inner mx-auto">
+        🍎
+      </div>
+      <h2 class="text-2xl font-bold text-center text-gray-800 mb-2 group-hover:text-red-600">A Contar</h2>
+      <p class="text-gray-500 text-center text-sm leading-relaxed">¿Cuántos ves? Practica los números contando elementos divertidos.</p>
+    </a>
+
+    <a href="./juegos/caritas-y-emociones.html" class="group bg-white rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-b-4 border-yellow-100 hover:border-yellow-400 card-enter" style="animation-delay: 300ms;">
+      <div class="w-20 h-20 bg-yellow-50 rounded-2xl flex items-center justify-center text-5xl mb-4 group-hover:scale-110 transition-transform duration-300 shadow-inner mx-auto">
+        😊
+      </div>
+      <h2 class="text-2xl font-bold text-center text-gray-800 mb-2 group-hover:text-yellow-600">Emociones</h2>
+      <p class="text-gray-500 text-center text-sm leading-relaxed">Descubre qué siente cada carita. ¡Alegría, sorpresa y más!</p>
+    </a>
+
+    <a href="./juegos/construye-la-figura.html" class="group bg-white rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-b-4 border-teal-100 hover:border-teal-400 card-enter" style="animation-delay: 350ms;">
+      <div class="w-20 h-20 bg-teal-50 rounded-2xl flex items-center justify-center text-5xl mb-4 group-hover:scale-110 transition-transform duration-300 shadow-inner mx-auto">
+        🏗️
+      </div>
+      <h2 class="text-2xl font-bold text-center text-gray-800 mb-2 group-hover:text-teal-600">Arquitecto</h2>
+      <p class="text-gray-500 text-center text-sm leading-relaxed">Superpón las formas geométricas en el orden correcto.</p>
+    </a>
+
+    <a href="./juegos/juego-de-siluetas.html" class="group bg-white rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-b-4 border-slate-100 hover:border-slate-400 card-enter" style="animation-delay: 400ms;">
+      <div class="w-20 h-20 bg-slate-100 rounded-2xl flex items-center justify-center text-5xl mb-4 group-hover:scale-110 transition-transform duration-300 shadow-inner mx-auto">
+        🔦
+      </div>
+      <h2 class="text-2xl font-bold text-center text-gray-800 mb-2 group-hover:text-slate-600">Sombras</h2>
+      <p class="text-gray-500 text-center text-sm leading-relaxed">Usa tu linterna mágica para encontrar quién se esconde en la oscuridad.</p>
+    </a>
+
+    <a href="./juegos/secuencias-simples.html" class="group bg-white rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-b-4 border-indigo-100 hover:border-indigo-400 card-enter" style="animation-delay: 450ms;">
+      <div class="w-20 h-20 bg-indigo-50 rounded-2xl flex items-center justify-center text-5xl mb-4 group-hover:scale-110 transition-transform duration-300 shadow-inner mx-auto">
+        🎹
+      </div>
+      <h2 class="text-2xl font-bold text-center text-gray-800 mb-2 group-hover:text-indigo-600">Música</h2>
+      <p class="text-gray-500 text-center text-sm leading-relaxed">Sigue el ritmo de los animales y repite la secuencia musical.</p>
+    </a>
+
+    <a href="./juegos/diferencias-entre-imagenes.html" class="group bg-white rounded-3xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 hover:-translate-y-2 border-b-4 border-sky-100 hover:border-sky-400 card-enter" style="animation-delay: 500ms;">
+      <div class="w-20 h-20 bg-sky-50 rounded-2xl flex items-center justify-center text-5xl mb-4 group-hover:scale-110 transition-transform duration-300 shadow-inner mx-auto">
+        👀
+      </div>
+      <h2 class="text-2xl font-bold text-center text-gray-800 mb-2 group-hover:text-sky-600">Diferencias</h2>
+      <p class="text-gray-500 text-center text-sm leading-relaxed">Observa bien los paisajes y encuentra el objeto que cambió.</p>
+    </a>
+
+  </main>
+
+  <footer class="text-center mt-16 text-gray-400 text-sm font-medium">
+    <p>Creado con - Torres Almonacid Carlos ❤️ para aprender jugando</p>
+  </footer>
+
+</body>
+</html>

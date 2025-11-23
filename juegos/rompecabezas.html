@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rompecabezas Mágico</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Fredoka', sans-serif; }
+
+    /* Fondo animado */
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .bg-animated {
+      background: linear-gradient(-45deg, #fbc2eb, #a6c1ee, #c2e9fb);
+      background-size: 400% 400%;
+      animation: gradientBG 15s ease infinite;
+    }
+
+    /* Estilo de las piezas */
+    .puzzle-piece {
+      transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+      box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+      border-radius: 8px; /* Bordes suaves */
+    }
+
+    .puzzle-piece:hover {
+      transform: scale(1.02);
+      z-index: 10;
+      box-shadow: 4px 4px 10px rgba(0,0,0,0.2);
+    }
+
+    /* Clase cuando se está arrastrando */
+    .dragging {
+      opacity: 0.5;
+      transform: scale(0.95);
+    }
+    
+    /* Animación de entrada */
+    .pop-in {
+      animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    @keyframes pop {
+      to { opacity: 1; transform: scale(1); }
+    }
+  </style>
+</head>
+
+<body class="bg-animated min-h-screen flex flex-col items-center justify-center p-4">
+
+  <div class="max-w-2xl w-full bg-white/70 backdrop-blur-xl rounded-3xl shadow-2xl p-6 border border-white/60 flex flex-col items-center">
+
+    <div class="w-full flex justify-between items-center mb-6">
+      <a href="../index.html" class="bg-white text-gray-500 hover:text-blue-600 px-4 py-2 rounded-xl font-bold shadow-sm transition flex items-center gap-2 text-sm">
+        ⬅ Salir
+      </a>
+      <div class="bg-blue-100 text-blue-700 px-4 py-2 rounded-xl font-bold shadow-sm text-sm">
+        Nivel <span id="nivelDisplay">1</span>
+      </div>
+    </div>
+
+    <h1 class="text-3xl font-bold text-slate-700 mb-2">🧩 Rompecabezas</h1>
+    <p class="text-slate-500 text-sm mb-6">Arrastra las piezas para armar la imagen</p>
+
+    <div class="p-4 bg-white rounded-2xl shadow-inner border-4 border-blue-100">
+      <div id="puzzle" class="grid bg-slate-100 rounded-lg overflow-hidden relative min-h-[300px] min-w-[300px] flex items-center justify-center">
+        <span class="text-slate-400 animate-pulse">Cargando imagen...</span>
+      </div>
+    </div>
+
+    <div class="mt-4">
+       <button onclick="verAyuda()" class="text-xs text-blue-500 hover:underline">¿Ver imagen original?</button>
+    </div>
+
+  </div>
+
+  <script>
+    // --- AUDIO CONTEXT (Sonidos) ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      const now = audioCtx.currentTime;
+
+      if (type === 'drop') {
+        // Sonido "Toc" de madera
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now);
+        osc.stop(now + 0.1);
+      } else if (type === 'win') {
+        // Fanfarria
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.setValueAtTime(600, now + 0.1);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+        osc.start(now);
+        osc.stop(now + 0.4);
+      }
+    }
+
+    // --- LÓGICA DEL JUEGO ---
+    const filas = 3;
+    const columnas = 3;
+    const puzzleContainer = document.getElementById("puzzle");
+    let imagenOriginalSrc = ""; // Para la ayuda
+
+    // Lista de niveles (Tus archivos SVG)
+    const otherLevels = ["dibujos/flor.svg", "dibujos/casita.svg", "dibujos/carita.svg", "dibujos/auto.svg"];
+    
+    // Función para mezclar array
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    shuffleArray(otherLevels);
+    const niveles = ["dibujos/osito.svg", ...otherLevels];
+
+    let nivelActual = 0;
+
+    // Iniciar
+    cargarNivel(nivelActual);
+
+    function cargarNivel(index) {
+      document.getElementById("nivelDisplay").innerText = index + 1;
+      puzzleContainer.innerHTML = '<span class="text-slate-400 animate-pulse">Cargando...</span>';
+      
+      const ruta = niveles[index];
+      
+      fetch(ruta)
+        .then(res => {
+          if (!res.ok) throw new Error("No se encontró la imagen");
+          return res.text();
+        })
+        .then(svgTexto => iniciarRompecabezas(svgTexto))
+        .catch(err => {
+          console.error(err);
+          puzzleContainer.innerHTML = `<p class="text-red-400 text-center p-4">⚠️ No se encontró el archivo:<br><b>${ruta}</b><br>Verifica que la carpeta 'dibujos' exista.</p>`;
+        });
+    }
+
+    function iniciarRompecabezas(svgTexto) {
+      const img = new Image();
+      // Corrección de caracteres especiales en SVG
+      const svg64 = btoa(unescape(encodeURIComponent(svgTexto)));
+      img.src = "data:image/svg+xml;base64," + svg64;
+      imagenOriginalSrc = img.src; // Guardar para la ayuda
+
+      img.onload = () => {
+        // 1. Canvas Maestro (Alta calidad)
+        const puzzleWidth = 600; 
+        const puzzleHeight = 600; 
+
+        const mainCanvas = document.createElement("canvas");
+        const mainCtx = mainCanvas.getContext("2d");
+        mainCanvas.width = puzzleWidth;
+        mainCanvas.height = puzzleHeight;
+        mainCtx.drawImage(img, 0, 0, puzzleWidth, puzzleHeight);
+
+        // 2. Configurar Grid CSS
+        puzzleContainer.style.display = "grid";
+        puzzleContainer.style.gridTemplateColumns = `repeat(${columnas}, 1fr)`;
+        puzzleContainer.style.gap = "4px"; // Un pequeño espacio entre piezas queda elegante
+        puzzleContainer.style.maxWidth = "500px";
+        puzzleContainer.style.aspectRatio = "1 / 1"; // Mantener cuadrado
+        
+        // Limpiar contenedor
+        puzzleContainer.innerHTML = "";
+
+        // 3. Cortar Piezas
+        const piezaAncho = puzzleWidth / columnas;
+        const piezaAlto = puzzleHeight / filas;
+        let piezas = [];
+
+        for (let fila = 0; fila < filas; fila++) {
+          for (let col = 0; col < columnas; col++) {
+            
+            const pieceCanvas = document.createElement("canvas");
+            const pieceCtx = pieceCanvas.getContext("2d");
+            pieceCanvas.width = piezaAncho;
+            pieceCanvas.height = piezaAlto;
+
+            pieceCtx.drawImage(
+              mainCanvas,
+              col * piezaAncho, fila * piezaAlto,
+              piezaAncho, piezaAlto,
+              0, 0,
+              piezaAncho, piezaAlto
+            );
+
+            let pieza = document.createElement("img");
+            pieza.className = "puzzle-piece cursor-grab active:cursor-grabbing pop-in";
+            // Retraso en animación para efecto cascada
+            pieza.style.animationDelay = `${(fila * columnas + col) * 50}ms`;
+            
+            pieza.style.width = "100%";
+            pieza.style.height = "100%";
+            pieza.style.objectFit = "cover";
+            pieza.src = pieceCanvas.toDataURL();
+
+            pieza.draggable = true;
+            // ID Correcto: "0-0", "0-1", etc.
+            pieza.dataset.correcta = `${fila}-${col}`;
+
+            piezas.push(pieza);
+          }
+        }
+
+        // 4. Mezclar y Añadir
+        piezas.sort(() => Math.random() - 0.5);
+        piezas.forEach(p => puzzleContainer.appendChild(p));
+
+        activarDragAndDrop();
+      };
+    }
+
+    function activarDragAndDrop() {
+      const piezas = document.querySelectorAll("#puzzle img");
+
+      piezas.forEach(p => {
+        p.addEventListener("dragstart", e => {
+          e.dataTransfer.setData("text/plain", `${e.target.dataset.correcta}|${e.target.src}`);
+          e.dataTransfer.effectAllowed = "move";
+          e.target.classList.add("dragging");
+        });
+
+        p.addEventListener("dragend", e => {
+          e.target.classList.remove("dragging");
+        });
+
+        p.addEventListener("dragover", e => e.preventDefault());
+
+        p.addEventListener("drop", e => {
+          e.preventDefault();
+          
+          // Efecto de sonido
+          playSound('drop');
+
+          const data = e.dataTransfer.getData("text/plain");
+          const [correctaDrag, srcDrag] = data.split("|");
+
+          const correctaDrop = e.target.dataset.correcta;
+          const srcDrop = e.target.src;
+
+          // Buscar la pieza original que se arrastró
+          const draggedPiece = [...piezas].find(p => p.src === srcDrag);
+          if (!draggedPiece) return;
+
+          // Intercambio de atributos
+          e.target.src = srcDrag;
+          e.target.dataset.correcta = correctaDrag;
+
+          draggedPiece.src = srcDrop;
+          draggedPiece.dataset.correcta = correctaDrop;
+
+          verificarSiTermino();
+        });
+      });
+    }
+
+    function verificarSiTermino() {
+      const piezas = document.querySelectorAll("#puzzle img");
+      let terminado = true;
+
+      for (let i = 0; i < piezas.length; i++) {
+        const p = piezas[i];
+        // Calculamos qué ID debería tener esta posición en el grid (0, 1, 2...)
+        const expected = `${Math.floor(i / columnas)}-${i % columnas}`;
+        
+        if (p.dataset.correcta !== expected) {
+          terminado = false;
+          break;
+        }
+      }
+
+      if (terminado) {
+        playSound('win');
+        confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+
+        Swal.fire({
+          title: "¡Genial! 🧩",
+          text: "¡Armaste el rompecabezas!",
+          icon: "success",
+          confirmButtonText: "Siguiente Nivel ➡",
+          confirmButtonColor: "#3b82f6",
+          backdrop: `rgba(0,0,123,0.2)`
+        }).then(result => {
+          if (result.isConfirmed) {
+            nivelActual = (nivelActual + 1) % niveles.length;
+            cargarNivel(nivelActual);
+          }
+        });
+      }
+    }
+
+    function verAyuda() {
+      if(!imagenOriginalSrc) return;
+      Swal.fire({
+        title: 'Así debe quedar:',
+        imageUrl: imagenOriginalSrc,
+        imageWidth: 300,
+        imageHeight: 300,
+        imageAlt: 'Imagen original',
+        confirmButtonText: '¡Entendido!'
+      });
+    }
+  </script>
+</body>
+</html>

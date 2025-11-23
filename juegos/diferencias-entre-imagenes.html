@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Busca las Diferencias</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <style>
+    body { font-family: 'Fredoka', sans-serif; }
+
+    /* Los lienzos donde dibujamos */
+    .canvas-container {
+      position: relative;
+      background-color: #e0f2fe; /* Cielo azul base */
+      overflow: hidden;
+      border-radius: 1rem;
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.05);
+      cursor: crosshair;
+      /* Aspect ratio cuadrado o rectangular según se necesite */
+      aspect-ratio: 1 / 1; 
+    }
+
+    /* Los objetos dentro del paisaje */
+    .game-item {
+      position: absolute;
+      transform-origin: center bottom; /* Para que crezcan desde el suelo */
+      transition: transform 0.2s;
+      user-select: none;
+      filter: drop-shadow(0 4px 2px rgba(0,0,0,0.1));
+    }
+    
+    .game-item:hover {
+      transform: scale(1.1); /* Efecto al pasar el mouse */
+      filter: drop-shadow(0 8px 4px rgba(0,0,0,0.15));
+    }
+
+    /* Animación de entrada */
+    .pop-in { animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    @keyframes pop {
+      0% { transform: scale(0); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    /* Círculo rojo para marcar el error encontrado */
+    .marker {
+      position: absolute;
+      border: 4px solid #ef4444;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+      50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.7; }
+      100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body class="bg-indigo-50 min-h-screen flex flex-col items-center justify-center p-4">
+
+  <div class="max-w-6xl w-full bg-white rounded-3xl shadow-2xl p-6 border-4 border-white">
+    
+    <div class="flex justify-between items-center mb-6">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-800">👀 Encuentra la Diferencia</h1>
+        <p class="text-gray-500 text-sm">Hay <span class="text-indigo-600 font-bold">1 objeto</span> distinto en la imagen derecha.</p>
+      </div>
+      
+      <div class="flex items-center gap-4">
+        <div class="bg-indigo-100 px-4 py-2 rounded-lg text-indigo-700 font-bold">
+          Nivel <span id="nivel-txt">1</span>
+        </div>
+        <a href="../index.html" class="text-gray-400 hover:text-gray-600 font-bold text-sm">Salir</a>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8">
+      
+      <div class="relative">
+        <span class="absolute top-2 left-2 bg-white/80 px-2 py-1 rounded text-xs font-bold text-gray-500 z-10">ORIGINAL</span>
+        <div id="canvas-left" class="canvas-container bg-sky-200 border-4 border-sky-300">
+          </div>
+      </div>
+
+      <div class="relative">
+        <span class="absolute top-2 left-2 bg-white/80 px-2 py-1 rounded text-xs font-bold text-gray-500 z-10">COPIA (Con error)</span>
+        <div id="canvas-right" class="canvas-container bg-sky-200 border-4 border-purple-300 cursor-help">
+          </div>
+      </div>
+
+    </div>
+
+    <div class="mt-6 text-center">
+      <button onclick="cargarNivel()" class="text-sm text-gray-400 hover:text-indigo-500 underline">
+        🔄 Saltar nivel (Generar otro paisaje)
+      </button>
+    </div>
+
+  </div>
+
+  <script>
+    // --- DATOS DE OBJETOS ---
+    // Agrupados por temática para que el paisaje tenga sentido
+    const temas = [
+      {
+        nombre: 'Bosque',
+        fondo: 'bg-green-100',
+        decoracion: ['🌲', '🌳', '🍄', '🍃', '🌿', '☘️'],
+        personajes: ['🦊', '🐻', '🦉', '🐿️', '🦋']
+      },
+      {
+        nombre: 'Granja',
+        fondo: 'bg-yellow-50',
+        decoracion: ['🌻', '🌽', '🏠', '🚜', '🌾', '🧱'],
+        personajes: ['🐮', '🐷', '🐔', '🐑', '🐴']
+      },
+      {
+        nombre: 'Océano',
+        fondo: 'bg-blue-200',
+        decoracion: ['🌊', '💧', '🐚', '🥥', '⚓'],
+        personajes: ['🐙', '🐡', '🐠', '🐬', '🦀', '🐳']
+      }
+    ];
+
+    let nivel = 1;
+
+    // Iniciar
+    setTimeout(cargarNivel, 100); // Pequeño delay para asegurar carga
+
+    function cargarNivel() {
+      const leftCanvas = document.getElementById('canvas-left');
+      const rightCanvas = document.getElementById('canvas-right');
+      
+      // Limpiar lienzos
+      leftCanvas.innerHTML = '';
+      rightCanvas.innerHTML = '';
+
+      // 1. Elegir tema aleatorio
+      const tema = temas[Math.floor(Math.random() * temas.length)];
+      
+      // Aplicar color de fondo
+      leftCanvas.className = `canvas-container border-4 border-gray-200 ${tema.fondo}`;
+      rightCanvas.className = `canvas-container border-4 border-indigo-200 ${tema.fondo}`;
+
+      // 2. Determinar cuántos objetos poner (sube dificultad con el nivel)
+      // Nivel 1 = 5 objetos, Nivel 10 = 15 objetos...
+      const cantidadObjetos = Math.min(5 + nivel, 15); 
+
+      // 3. Generar posiciones y objetos
+      // Creamos una lista de "definiciones" de objetos para dibujarlos luego
+      let objetosNivel = [];
+
+      for(let i=0; i<cantidadObjetos; i++) {
+        // ¿Es decoración o personaje? (70% deco, 30% personaje)
+        const lista = Math.random() > 0.3 ? tema.decoracion : tema.personajes;
+        const emoji = lista[Math.floor(Math.random() * lista.length)];
+        
+        // Posición aleatoria (evitando bordes extremos)
+        const x = Math.floor(Math.random() * 85) + 5; // %
+        const y = Math.floor(Math.random() * 85) + 5; // %
+        const scale = (Math.random() * 1.5) + 2.5; // Tamaño entre 2.5rem y 4rem
+        
+        objetosNivel.push({ 
+          id: i, 
+          emoji: emoji, 
+          x: x, 
+          y: y, 
+          size: scale 
+        });
+      }
+
+      // Ordenar por coordenada Y para que los de abajo tapen a los de arriba (perspectiva 2.5D)
+      objetosNivel.sort((a, b) => a.y - b.y);
+
+      // 4. Elegir cuál será el "Diferente"
+      const indiceDiferente = Math.floor(Math.random() * objetosNivel.length);
+      const objetoDiferenteData = objetosNivel[indiceDiferente];
+
+      // Buscar un reemplazo para el diferente (que sea del mismo tema pero distinto emoji)
+      let nuevoEmoji = objetoDiferenteData.emoji;
+      // Loop para asegurar que el nuevo emoji sea diferente al actual
+      let intentos = 0;
+      while (nuevoEmoji === objetoDiferenteData.emoji && intentos < 10) {
+        const todasOpciones = [...tema.decoracion, ...tema.personajes];
+        nuevoEmoji = todasOpciones[Math.floor(Math.random() * todasOpciones.length)];
+        intentos++;
+      }
+
+      // 5. DIBUJAR EN AMBOS LIENZOS
+      objetosNivel.forEach((obj, index) => {
+        // --- DIBUJAR IZQUIERDA (ORIGINAL) ---
+        const elLeft = crearElemento(obj.emoji, obj.x, obj.y, obj.size);
+        leftCanvas.appendChild(elLeft);
+
+        // --- DIBUJAR DERECHA (MODIFICADO) ---
+        let elRight;
+        
+        if (index === indiceDiferente) {
+          // ** ESTE ES EL DIFERENTE **
+          // Dibujamos el NUEVO emoji
+          elRight = crearElemento(nuevoEmoji, obj.x, obj.y, obj.size);
+          elRight.classList.add('cursor-pointer'); // Manita al pasar
+          elRight.onclick = (e) => victoria(e, elRight);
+        } else {
+          // ** ESTE ES IGUAL **
+          elRight = crearElemento(obj.emoji, obj.x, obj.y, obj.size);
+          // Si tocan uno igual, error
+          elRight.onclick = (e) => error(e.target);
+        }
+        
+        rightCanvas.appendChild(elRight);
+      });
+    }
+
+    // Helper para crear el HTML del emoji
+    function crearElemento(emoji, x, y, size) {
+      const div = document.createElement('div');
+      div.innerText = emoji;
+      div.className = 'game-item pop-in';
+      div.style.left = x + '%';
+      div.style.top = y + '%';
+      div.style.fontSize = size + 'rem';
+      // Pequeña rotación aleatoria para naturalidad
+      const rot = (Math.random() * 20) - 10;
+      div.style.transform = `rotate(${rot}deg)`;
+      return div;
+    }
+
+    // --- LÓGICA DE JUEGO ---
+
+    function victoria(e, elemento) {
+      e.stopPropagation(); // Evitar doble click
+      
+      // 1. Marcar visualmente
+      const marcador = document.createElement('div');
+      marcador.className = 'marker';
+      marcador.style.left = elemento.style.left;
+      marcador.style.top = elemento.style.top;
+      document.getElementById('canvas-right').appendChild(marcador);
+
+      // 2. Confeti!
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 }
+      });
+
+      // 3. Alerta
+      Swal.fire({
+        title: '¡Muy bien! 🌟',
+        text: '¡Tienes ojo de águila!',
+        icon: 'success',
+        confirmButtonText: 'Siguiente Nivel',
+        confirmButtonColor: '#4f46e5',
+        timer: 3000,
+        timerProgressBar: true
+      }).then(() => {
+        nivel++;
+        document.getElementById('nivel-txt').innerText = nivel;
+        cargarNivel();
+      });
+    }
+
+    function error(elemento) {
+      // Animación de temblor
+      elemento.style.transition = 'transform 0.1s';
+      elemento.style.transform += ' translateX(5px)';
+      setTimeout(() => {
+        elemento.style.transform = elemento.style.transform.replace(' translateX(5px)', '');
+      }, 100);
+
+      // Feedback suave
+      const Toast = Swal.mixin({
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 1500,
+        timerProgressBar: true
+      });
+      
+      Toast.fire({
+        icon: 'info',
+        title: 'Ese es igual... sigue buscando 👀'
+      });
+    }
+
+  </script>
+</body>
+</html>

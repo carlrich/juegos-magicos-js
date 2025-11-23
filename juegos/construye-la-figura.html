@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Constructor de Formas</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Fredoka', sans-serif; }
+    
+    /* Zona de construcción con patrón de cuadrícula suave */
+    .blueprint-bg {
+      background-color: #f0f4f8;
+      background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    /* Animación al soltar una pieza */
+    .pop-in { animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+    @keyframes pop {
+      0% { transform: scale(0); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    /* Las piezas apiladas deben estar centradas absolutamente */
+    .stacked-item {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none; /* Para que no interfieran con nuevos drops */
+      filter: drop-shadow(0 4px 3px rgba(0,0,0,0.1));
+    }
+  </style>
+</head>
+<body class="bg-slate-800 min-h-screen flex items-center justify-center p-4">
+
+  <div class="max-w-5xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row min-h-[600px]">
+    
+    <div class="md:w-1/3 bg-indigo-600 p-8 text-white flex flex-col items-center relative">
+      <a href="../index.html" class="absolute top-4 left-4 bg-indigo-500 hover:bg-indigo-400 p-2 rounded-lg text-xs transition">⬅ Salir</a>
+      
+      <h2 class="text-2xl font-bold mb-2">Objetivo</h2>
+      <p class="text-indigo-200 text-sm mb-6 text-center">Replica esta figura exacta</p>
+      
+      <div id="objetivo-container" class="w-48 h-48 bg-white/10 rounded-xl relative flex items-center justify-center border-2 border-dashed border-indigo-300/50">
+        </div>
+
+      <div class="mt-auto text-center">
+        <p class="text-indigo-300 text-xs uppercase tracking-widest mb-1">Nivel</p>
+        <p class="text-4xl font-bold" id="nivel-texto">1</p>
+      </div>
+    </div>
+
+    <div class="md:w-2/3 p-6 flex flex-col bg-slate-50">
+      
+      <div class="flex-1 flex flex-col items-center justify-center mb-6">
+        <p class="text-slate-400 text-sm mb-2 font-bold uppercase tracking-wide">Tu Construcción</p>
+        
+        <div id="zona-construccion" 
+             class="w-64 h-64 blueprint-bg rounded-2xl border-4 border-slate-200 relative shadow-inner flex items-center justify-center transition-colors duration-300"
+             ondragover="permitirDrop(event)" 
+             ondrop="soltar(event)"
+             ondragenter="entrarZona(this)"
+             ondragleave="salirZona(this)">
+             
+          <span class="text-slate-400 text-xs pointer-events-none absolute bottom-2">Arrastra aquí las piezas</span>
+          </div>
+
+        <div class="flex gap-4 mt-6">
+          <button onclick="borrarUltimo()" class="px-4 py-2 text-slate-500 hover:text-red-500 font-bold bg-white rounded-lg shadow-sm border border-slate-200 transition text-sm">
+            ⏪ Deshacer
+          </button>
+          <button onclick="verificar()" class="px-8 py-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold rounded-lg shadow-lg hover:shadow-xl hover:-translate-y-1 transition">
+            ¡Terminado! ✨
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+        <p class="text-slate-400 text-xs mb-3 font-bold uppercase">Piezas Disponibles</p>
+        <div id="inventario" class="flex flex-wrap gap-4 justify-center min-h-[80px]">
+          </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // --- BIBLIOTECA DE FORMAS SVG ---
+    const formasSVG = {
+      cuadrado: (color, size) => `<svg width="${size}" height="${size}" viewBox="0 0 100 100"><rect width="100" height="100" rx="15" fill="${color}" /></svg>`,
+      circulo: (color, size) => `<svg width="${size}" height="${size}" viewBox="0 0 100 100"><circle cx="50" cy="50" r="50" fill="${color}" /></svg>`,
+      triangulo: (color, size) => `<svg width="${size}" height="${size}" viewBox="0 0 100 100"><path d="M50 5 L95 90 L5 90 Z" fill="${color}" stroke-linejoin="round" stroke-width="10" stroke="${color}"/></svg>`,
+      estrella: (color, size) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24"><path fill="${color}" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`
+    };
+
+    // --- CONFIGURACIÓN DE DISTRACTORES ---
+    const coloresPosibles = ['#ef4444', '#3b82f6', '#10b981', '#fbbf24', '#ec4899', '#8b5cf6', '#6366f1'];
+    const tiposPosibles = ['cuadrado', 'circulo', 'triangulo', 'estrella'];
+
+    // --- NIVELES ---
+    const niveles = [
+      {
+        id: 1,
+        capas: [
+          { tipo: 'cuadrado', color: '#3b82f6', tamano: 180 }, 
+          { tipo: 'circulo', color: '#fbbf24', tamano: 100 }   
+        ]
+      },
+      {
+        id: 2,
+        capas: [
+          { tipo: 'circulo', color: '#ef4444', tamano: 180 }, 
+          { tipo: 'triangulo', color: '#10b981', tamano: 120 } 
+        ]
+      },
+      {
+        id: 3,
+        capas: [
+          { tipo: 'cuadrado', color: '#6366f1', tamano: 180 }, 
+          { tipo: 'circulo', color: '#ffffff', tamano: 140 },  
+          { tipo: 'estrella', color: '#f59e0b', tamano: 90 }   
+        ]
+      },
+       {
+        id: 4,
+        capas: [
+          { tipo: 'triangulo', color: '#ec4899', tamano: 190 }, 
+          { tipo: 'cuadrado', color: '#8b5cf6', tamano: 100 }, 
+          { tipo: 'circulo', color: '#10b981', tamano: 50 }    
+        ]
+      }
+    ];
+
+    let nivelActual = 0;
+    let construccionJugador = []; 
+
+    cargarNivel(nivelActual);
+
+    function cargarNivel(index) {
+      const datos = niveles[index];
+      construccionJugador = [];
+      document.getElementById('nivel-texto').innerText = index + 1;
+      
+      // 1. RENDERIZAR OBJETIVO (SOLO LAS PIEZAS CORRECTAS)
+      const contenedorObjetivo = document.getElementById('objetivo-container');
+      contenedorObjetivo.innerHTML = '';
+      
+      datos.capas.forEach((capa, i) => {
+        const div = document.createElement('div');
+        div.className = 'stacked-item'; 
+        div.style.zIndex = i; 
+        div.innerHTML = formasSVG[capa.tipo](capa.color, capa.tamano);
+        contenedorObjetivo.appendChild(div);
+      });
+
+      // 2. LIMPIAR ZONA DE CONSTRUCCIÓN
+      actualizarZonaConstruccion();
+
+      // 3. PREPARAR INVENTARIO (CORRECTAS + TRAMPAS)
+      const inventarioDiv = document.getElementById('inventario');
+      inventarioDiv.innerHTML = '';
+
+      // A) Agregamos las piezas correctas
+      let piezasJuego = datos.capas.map((capa, i) => ({
+        ...capa,
+        idUnico: `correcta-${i}-${Math.random()}`
+      }));
+
+      // B) --- AQUÍ ESTÁ LA MAGIA: GENERAR DISTRACTORES ---
+      // Generamos 3 piezas falsas aleatorias
+      for (let i = 0; i < 3; i++) {
+        piezasJuego.push({
+          tipo: tiposPosibles[Math.floor(Math.random() * tiposPosibles.length)],
+          color: coloresPosibles[Math.floor(Math.random() * coloresPosibles.length)],
+          tamano: 100, // Tamaño estándar para que no resalten por ser raras
+          idUnico: `trampa-${i}-${Math.random()}` 
+        });
+      }
+
+      // C) Mezclar todo para que no se sepa cuáles son las falsas
+      piezasJuego.sort(() => Math.random() - 0.5);
+
+      piezasJuego.forEach(pieza => {
+        const div = document.createElement('div');
+        div.className = 'cursor-grab active:cursor-grabbing hover:scale-110 transition-transform';
+        div.draggable = true;
+        div.dataset.json = JSON.stringify(pieza);
+        
+        // En el inventario se ven todas de tamaño uniforme (60px)
+        div.innerHTML = formasSVG[pieza.tipo](pieza.color, 60); 
+        
+        div.ondragstart = (e) => {
+          e.dataTransfer.setData('application/json', div.dataset.json);
+          e.dataTransfer.effectAllowed = 'copy';
+          setTimeout(() => div.classList.add('opacity-50'), 0);
+        };
+        div.ondragend = () => div.classList.remove('opacity-50');
+
+        inventarioDiv.appendChild(div);
+      });
+    }
+
+    // --- LÓGICA DRAG & DROP (IGUAL QUE ANTES) ---
+
+    function permitirDrop(e) { e.preventDefault(); }
+    
+    function entrarZona(elem) { elem.classList.add('bg-indigo-50', 'border-indigo-300'); }
+    function salirZona(elem) { elem.classList.remove('bg-indigo-50', 'border-indigo-300'); }
+
+    function soltar(e) {
+      e.preventDefault();
+      const zona = document.getElementById('zona-construccion');
+      salirZona(zona);
+
+      const data = e.dataTransfer.getData('application/json');
+      if (!data) return;
+      
+      const pieza = JSON.parse(data);
+      construccionJugador.push(pieza);
+      actualizarZonaConstruccion();
+    }
+
+    function borrarUltimo() {
+      construccionJugador.pop();
+      actualizarZonaConstruccion();
+    }
+
+    function actualizarZonaConstruccion() {
+      const zona = document.getElementById('zona-construccion');
+      zona.innerHTML = construccionJugador.length === 0 
+        ? '<span class="text-slate-400 text-xs pointer-events-none absolute bottom-2">Arrastra aquí las piezas</span>' 
+        : '';
+
+      construccionJugador.forEach((pieza, index) => {
+        const div = document.createElement('div');
+        div.className = 'stacked-item pop-in';
+        div.style.zIndex = index;
+        // Usamos el tamaño definido en la pieza (si es trampa, será 100 por defecto)
+        div.innerHTML = formasSVG[pieza.tipo](pieza.color, pieza.tamano); 
+        zona.appendChild(div);
+      });
+    }
+
+    // --- VERIFICACIÓN (AHORA MÁS ESTRICTA) ---
+
+    function verificar() {
+      const objetivo = niveles[nivelActual].capas;
+      
+      // 1. Verificar cantidad de piezas
+      // Si el usuario puso distractores de más, esto fallará, lo cual es correcto.
+      if (construccionJugador.length !== objetivo.length) {
+        mostrarError("La cantidad de piezas no coincide. ¿Pusiste alguna de más o te falta alguna?");
+        return;
+      }
+
+      // 2. Verificar capa por capa
+      let todoCorrecto = true;
+      for (let i = 0; i < objetivo.length; i++) {
+        const pJugador = construccionJugador[i];
+        const pObjetivo = objetivo[i];
+
+        // Comparamos tipo y color
+        if (pJugador.tipo !== pObjetivo.tipo || pJugador.color !== pObjetivo.color) {
+          todoCorrecto = false;
+          break;
+        }
+      }
+
+      if (todoCorrecto) {
+        Swal.fire({
+          title: '¡Excelente! 🌟',
+          text: 'No caíste en las trampas y construiste la figura perfecta.',
+          icon: 'success',
+          confirmButtonText: 'Siguiente Nivel',
+          confirmButtonColor: '#10b981'
+        }).then(() => {
+          nivelActual = (nivelActual + 1) % niveles.length;
+          cargarNivel(nivelActual);
+        });
+      } else {
+        mostrarError("La figura no es igual. Revisa los colores, las formas y el orden de las capas.");
+      }
+    }
+
+    function mostrarError(msg) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Algo no cuadra...',
+        text: msg,
+        confirmButtonColor: '#ef4444'
+      });
+    }
+
+  </script>
+</body>
+</html>
