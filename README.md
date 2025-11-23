@@ -66,4 +66,4 @@ Si quieres correr este proyecto en tu computadora:
 Este proyecto es de código abierto y está disponible bajo la [Licencia MIT](LICENSE). Siéntete libre de usarlo para fines educativos.
 
 ---
-Hecho con ❤️ por [TU NOMBRE]
+Hecho con ❤️ por Torres Almonacid Carlos Richard
