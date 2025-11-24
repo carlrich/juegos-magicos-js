@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>El Mundo de los Opuestos</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/default.css">
+  <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/scroll-behaviour.min.js"></script>
+  <script>
+    MobileDragDrop.polyfill({
+      dragImageTranslateOverride: MobileDragDrop.scrollBehaviour.scrollBehaviourDragImageTranslateOverride
+    });
+  </script>
+
+  <style>
+    body { font-family: 'Fredoka', sans-serif; }
+
+    /* Fondo animado suave */
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .bg-animated {
+      background: linear-gradient(-45deg, #f0f9ff, #e0f2fe, #bae6fd, #7dd3fc);
+      background-size: 400% 400%;
+      animation: gradientBG 15s ease infinite;
+    }
+
+    /* Ítems Arrastrables (Imágenes) */
+    .draggable-image {
+      cursor: grab;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      touch-action: none;
+    }
+    .draggable-image:active {
+      cursor: grabbing;
+      transform: scale(1.1) rotate(3deg);
+      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+    }
+    .draggable-image.dragging {
+      opacity: 0.4;
+    }
+    /* Animación al colocar correctamente */
+    .placed {
+      animation: rubberBand 0.6s;
+    }
+    @keyframes rubberBand {
+      0% { transform: scale(1); }
+      30% { transform: scale(1.25, 0.75); }
+      40% { transform: scale(0.75, 1.25); }
+      50% { transform: scale(1.15, 0.85); }
+      65% { transform: scale(0.95, 1.05); }
+      75% { transform: scale(1.05, 0.95); }
+      100% { transform: scale(1); }
+    }
+
+    /* Zonas de Destino (Nombres) */
+    .drop-zone-name {
+      transition: all 0.3s ease;
+      border-style: dashed;
+    }
+    .drop-zone-name.hovered {
+      background-color: #dbeafe; /* Azul claro */
+      border-color: #3b82f6;
+      transform: scale(1.03);
+    }
+    .drop-zone-name.filled {
+      background-color: #d1fae5; /* Verde claro */
+      border-color: #10b981;
+      border-style: solid;
+    }
+    .drop-zone-name.error {
+        background-color: #fee2e2; /* Rojo claro */
+        border-color: #ef4444;
+        animation: shake 0.4s;
+    }
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+    }
+
+    /* Animación de entrada */
+    .pop-in { animation: pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; opacity: 0; transform: scale(0.5); }
+    @keyframes pop { to { opacity: 1; transform: scale(1); } }
+  </style>
+</head>
+
+<body class="bg-animated min-h-screen flex flex-col items-center justify-center p-4">
+
+  <div class="max-w-5xl w-full bg-white/70 backdrop-blur-lg rounded-3xl shadow-2xl p-6 border-4 border-white/50">
+    
+    <div class="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+      <a href="../index.html" class="bg-white hover:bg-blue-50 text-blue-600 px-5 py-2 rounded-2xl font-bold shadow-sm transition flex items-center gap-2 text-sm group">
+        <span class="group-hover:-translate-x-1 transition-transform">⬅</span> Salir
+      </a>
+      <div class="bg-blue-100/80 px-8 py-3 rounded-2xl shadow-sm border border-blue-200 backdrop-blur-md">
+        <h1 class="text-2xl font-bold text-blue-800 text-center">
+          Nivel <span id="levelDisplay" class="text-blue-600 text-3xl">1</span>: <span id="levelNameDisplay" class="font-semibold">Conceptos Básicos</span>
+        </h1>
+      </div>
+      <div class="w-24 hidden md:block"></div> </div>
+
+    <div class="grid md:grid-cols-2 gap-8 items-start">
+      
+      <div class="bg-blue-50/50 rounded-3xl p-6 border-2 border-blue-100 min-h-[400px] shadow-inner relative overflow-hidden">
+        <div class="absolute inset-0 bg-grid-slate-200/50 [mask-image:linear-gradient(0deg,white,rgba(255,255,255,0.5))] -z-10"></div>
+        <h3 class="text-center text-blue-500 font-bold mb-6 uppercase text-sm tracking-wider bg-white/60 py-2 rounded-full mx-auto w-max px-6 shadow-sm">
+            Arrastra la imagen...
+        </h3>
+        <div id="drag-items" class="grid grid-cols-2 sm:grid-cols-3 gap-4 justify-items-center content-start">
+          </div>
+      </div>
+
+      <div class="bg-white/60 rounded-3xl p-6 border-2 border-slate-200 min-h-[400px] shadow-sm">
+        <h3 class="text-center text-slate-500 font-bold mb-6 uppercase text-sm tracking-wider bg-slate-100/60 py-2 rounded-full mx-auto w-max px-6 shadow-sm">
+            ...a su nombre contrario
+        </h3>
+        <div id="drop-zones" class="grid grid-cols-1 sm:grid-cols-2 gap-4 content-start">
+          </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    // --- GESTOR DE SONIDOS (Web Audio API) ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      const now = audioCtx.currentTime;
+
+      switch(type) {
+        case 'pickup': // Sonido "pop" suave
+          osc.frequency.setValueAtTime(400, now);
+          osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+          osc.start(now); osc.stop(now + 0.15);
+          break;
+        case 'drop': // Sonido "ding" brillante
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(800, now);
+          osc.frequency.exponentialRampToValueAtTime(1200, now + 0.2);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+          osc.start(now); osc.stop(now + 0.3);
+          break;
+        case 'error': // Sonido "bonk" grave
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(200, now);
+          osc.frequency.linearRampToValueAtTime(150, now + 0.2);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+          osc.start(now); osc.stop(now + 0.2);
+          break;
+      }
+    }
+
+    // --- DATOS DE NIVELES (Antónimos) ---
+    const levels = [
+      {
+        name: "Conceptos Básicos",
+        pairs: [
+          { img: "🔥", name: "CALIENTE" }, { img: "🧊", name: "FRÍO" },
+          { img: "🐰", name: "RÁPIDO" }, { img: "🐢", name: "LENTO" }
+        ]
+      },
+      {
+        name: "Tamaño y Posición",
+        pairs: [
+          { img: "🐘", name: "GRANDE" }, { img: "🐜", name: "PEQUEÑO" },
+          { img: "⬆️", name: "ARRIBA" }, { img: "⬇️", name: "ABAJO" }
+        ]
+      },
+      {
+        name: "Estados y Tiempo",
+        pairs: [
+          { img: "☀️", name: "DÍA" }, { img: "🌙", name: "NOCHE" },
+          { img: "🚪", name: "ABIERTO" }, { img: "🔒", name: "CERRADO" }
+        ]
+      },
+      {
+        name: "Emociones y Cualidades",
+        pairs: [
+          { img: "😄", name: "FELIZ" }, { img: "😢", name: "TRISTE" },
+          { img: "🏋️", name: "FUERTE" }, { img: "🥀", name: "DÉBIL" },
+          { img: "👶", name: "JOVEN" }, { img: "👴", name: "VIEJO" }
+        ]
+      }
+    ];
+
+    let currentLevel = 0;
+    let correctMatches = 0;
+
+    // --- LÓGICA DEL JUEGO ---
+    function startLevel() {
+      const dragZone = document.getElementById("drag-items");
+      const dropZone = document.getElementById("drop-zones");
+      const level = levels[currentLevel];
+
+      document.getElementById("levelDisplay").innerText = currentLevel + 1;
+      document.getElementById("levelNameDisplay").innerText = level.name;
+
+      correctMatches = 0;
+      dragZone.innerHTML = "";
+      dropZone.innerHTML = "";
+
+      // 1. Crear Zonas de Destino (Nombres)
+      // Usamos los pares en orden para que los nombres queden agrupados lógicamente
+      level.pairs.forEach((pair, index) => {
+        const zone = document.createElement("div");
+        zone.className = "drop-zone-name rounded-2xl border-4 border-slate-300 bg-white h-24 flex flex-col items-center justify-center relative shadow-sm pop-in";
+        zone.style.animationDelay = `${index * 100}ms`;
+        zone.dataset.target = pair.img; // La zona espera esta imagen
+        
+        zone.innerHTML = `
+          <span class="text-slate-700 font-bold text-xl tracking-wide">${pair.name}</span>
+          <div class="placeholder-icon mt-1 text-slate-300 text-2xl opacity-50">
+             ❓
+          </div>
+        `;
+
+        // Eventos Drop
+        zone.addEventListener("dragover", e => {
+          e.preventDefault();
+          if(!zone.classList.contains("filled")) zone.classList.add("hovered");
+        });
+        zone.addEventListener("dragleave", () => zone.classList.remove("hovered"));
+        zone.addEventListener("drop", e => handleDrop(e, zone));
+
+        dropZone.appendChild(zone);
+      });
+
+      // 2. Crear Ítems Arrastrables (Imágenes)
+      // Mezclamos los pares para desordenar las imágenes
+      const shuffledPairs = [...level.pairs].sort(() => Math.random() - 0.5);
+      
+      shuffledPairs.forEach((pair, index) => {
+        const div = document.createElement("div");
+        div.className = "draggable-image bg-white border-4 border-blue-200 p-4 rounded-2xl shadow-md text-6xl flex items-center justify-center pop-in w-24 h-24 cursor-grab";
+        div.style.animationDelay = `${(index + level.pairs.length) * 100}ms`; // Retraso para que aparezcan después de los nombres
+        div.textContent = pair.img;
+        div.draggable = true;
+        div.id = `item-${index}-${pair.name.replace(/\s/g, '')}`; // ID único
+
+        // Eventos Drag
+        div.addEventListener("dragstart", e => {
+          playSound('pickup');
+          e.dataTransfer.setData("text/plain", pair.img);
+          e.dataTransfer.setData("elementId", div.id);
+          setTimeout(() => div.classList.add("dragging"), 0);
+        });
+        div.addEventListener("dragend", () => div.classList.remove("dragging"));
+
+        dragZone.appendChild(div);
+      });
+    }
+
+    function handleDrop(e, zone) {
+      e.preventDefault();
+      zone.classList.remove("hovered");
+
+      const draggedImg = e.dataTransfer.getData("text/plain");
+      const draggedId = e.dataTransfer.getData("elementId");
+      
+      if (zone.classList.contains("filled")) return; // Zona ya ocupada
+
+      if (draggedImg === zone.dataset.target) {
+        // --- CORRECTO ---
+        playSound('drop');
+        correctMatches++;
+
+        // Actualizar visualmente la zona
+        zone.classList.add("filled");
+        zone.innerHTML = `
+           <span class="text-green-800 font-bold text-xl tracking-wide">${zone.innerText}</span>
+           <div class="mt-1 text-5xl filter drop-shadow-sm placed">
+              ${draggedImg}
+           </div>
+        `;
+
+        // Eliminar el item de la zona de origen
+        const originalItem = document.getElementById(draggedId);
+        if (originalItem) {
+            originalItem.style.opacity = '0';
+            originalItem.style.transform = 'scale(0)';
+            setTimeout(() => originalItem.remove(), 300); // Eliminar después de la animación
+        }
+
+        // Verificar Nivel Completo
+        if (correctMatches === levels[currentLevel].pairs.length) {
+          setTimeout(levelComplete, 600);
+        }
+
+      } else {
+        // --- INCORRECTO ---
+        playSound('error');
+        
+        // Animación de error en la zona
+        zone.classList.add("error");
+        setTimeout(() => zone.classList.remove("error"), 400);
+
+        Swal.fire({
+          toast: true, position: 'top', icon: 'warning',
+          title: '¡Ese no es su opuesto!', showConfirmButton: false, timer: 1500,
+          background: '#ffffff', iconColor: '#f59e0b'
+        });
+      }
+    }
+
+    function levelComplete() {
+      confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: ['#10b981', '#3b82f6', '#f59e0b'] });
+      
+      Swal.fire({
+        title: "¡Genial! 🎉",
+        text: `Completaste el nivel ${currentLevel + 1}.`,
+        icon: "success",
+        confirmButtonText: "Siguiente Nivel ➡",
+        confirmButtonColor: "#3b82f6",
+        padding: '2em',
+        backdrop: `rgba(59, 130, 246, 0.2)`
+      }).then(() => {
+        currentLevel++;
+        if (currentLevel < levels.length) {
+          startLevel();
+        } else {
+          endGame();
+        }
+      });
+    }
+
+    function endGame() {
+      confetti({ particleCount: 300, spread: 120, origin: { y: 0.5 } });
+      Swal.fire({
+        title: "¡Felicidades! 🏆✨",
+        html: "<p class='text-lg'>¡Eres un experto en antónimos!</p><p class='text-sm text-gray-500 mt-2'>Has completado todos los niveles.</p>",
+        icon: "success",
+        confirmButtonText: "Volver al Menú",
+        confirmButtonColor: "#10b981",
+        padding: '2em'
+      }).then(() => window.location.href = "../index.html");
+    }
+
+    // Iniciar el juego
+    startLevel();
+  </script>
+
+</body>
+</html>

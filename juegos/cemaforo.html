@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Taller del Semáforo</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/default.css">
+  <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/scroll-behaviour.min.js"></script>
+  <script>
+    MobileDragDrop.polyfill({
+      dragImageTranslateOverride: MobileDragDrop.scrollBehaviour.scrollBehaviourDragImageTranslateOverride
+    });
+  </script>
+
+  <style>
+    body { font-family: 'Fredoka', sans-serif; }
+
+    /* Fondo urbano animado */
+    .city-bg {
+      background-color: #e5e7eb;
+      background-image: 
+        linear-gradient(#9ca3af 2px, transparent 2px), 
+        linear-gradient(90deg, #9ca3af 2px, transparent 2px);
+      background-size: 40px 40px;
+    }
+
+    /* El cuerpo del semáforo */
+    .traffic-light-body {
+      background: #1f2937;
+      border: 4px solid #374151;
+      border-radius: 30px;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.4);
+    }
+
+    /* Los huecos vacíos (Drop Zones) */
+    .light-socket {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      background: #111827; /* Negro casi puro */
+      border: 4px inset #374151;
+      box-shadow: inset 0 5px 10px rgba(0,0,0,0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s;
+    }
+    .light-socket.hovered {
+      border-color: #60a5fa;
+      background: #1f2937;
+    }
+
+    /* Las luces arrastrables */
+    .traffic-lens {
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      border: 4px solid rgba(255,255,255,0.3);
+      cursor: grab;
+      transition: transform 0.2s;
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .traffic-lens:active {
+      cursor: grabbing;
+      transform: scale(1.1);
+    }
+    .traffic-lens.placed {
+      cursor: default;
+      width: 100%;
+      height: 100%;
+      border: none;
+      box-shadow: none;
+    }
+
+    /* Efectos de encendido (Brillo) */
+    .glow-red {
+      background: radial-gradient(circleAt 30% 30%, #fca5a5, #ef4444);
+      box-shadow: 0 0 40px #ef4444;
+      animation: pulseLight 2s infinite;
+    }
+    .glow-yellow {
+      background: radial-gradient(circleAt 30% 30%, #fde047, #eab308);
+      box-shadow: 0 0 40px #eab308;
+      animation: pulseLight 2s infinite;
+    }
+    .glow-green {
+      background: radial-gradient(circleAt 30% 30%, #86efac, #22c55e);
+      box-shadow: 0 0 40px #22c55e;
+      animation: pulseLight 2s infinite;
+    }
+
+    @keyframes pulseLight {
+      0% { opacity: 0.8; }
+      50% { opacity: 1; filter: brightness(1.2); }
+      100% { opacity: 0.8; }
+    }
+  </style>
+</head>
+
+<body class="city-bg min-h-screen flex flex-col items-center justify-center p-4">
+
+  <div class="absolute top-4 left-4 right-4 flex justify-between items-center">
+    <a href="../index.html" class="bg-white hover:bg-slate-100 text-slate-700 px-4 py-2 rounded-xl font-bold shadow-sm transition flex items-center gap-2 text-sm">
+      ⬅ Salir
+    </a>
+    <h1 class="text-xl font-bold text-slate-700 bg-white/80 px-4 py-2 rounded-xl backdrop-blur">
+      🚦 Arma el Semáforo
+    </h1>
+    <div class="w-20"></div>
+  </div>
+
+  <div class="flex flex-col md:flex-row items-center justify-center gap-16 w-full max-w-4xl">
+    
+    <div class="flex flex-col items-center">
+      <div class="traffic-light-body p-6 flex flex-col gap-6 relative">
+        <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 w-32 h-8 bg-gray-800 rounded-t-xl"></div>
+        
+        <div class="light-socket" data-color="red" id="socket-red"></div>
+        
+        <div class="light-socket" data-color="yellow" id="socket-yellow"></div>
+        
+        <div class="light-socket" data-color="green" id="socket-green"></div>
+      </div>
+      <div class="w-6 h-32 bg-gray-700 mt-[-4px]"></div>
+      <div class="w-24 h-4 bg-gray-800 rounded-full"></div>
+    </div>
+
+    <div class="bg-white/60 backdrop-blur-sm p-8 rounded-3xl border-4 border-white shadow-xl flex flex-col items-center gap-6">
+      <p class="text-slate-500 font-bold uppercase text-xs tracking-widest mb-2">Piezas sueltas</p>
+      
+      <div id="lightsContainer" class="flex flex-col gap-4">
+        <div class="traffic-lens bg-red-500" draggable="true" data-color="red" id="lens-red">
+          <span class="opacity-0">🔴</span> </div>
+        
+        <div class="traffic-lens bg-green-500" draggable="true" data-color="green" id="lens-green">
+           <span class="opacity-0">🟢</span>
+        </div>
+
+        <div class="traffic-lens bg-yellow-400" draggable="true" data-color="yellow" id="lens-yellow">
+           <span class="opacity-0">🟡</span>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    // --- SONIDO Y VOZ ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const synth = window.speechSynthesis;
+
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      const now = audioCtx.currentTime;
+
+      if (type === 'snap') {
+        // Sonido mecánico de encaje
+        osc.frequency.setValueAtTime(200, now);
+        osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now); osc.stop(now + 0.1);
+      } else if (type === 'error') {
+        // Sonido grave
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(100, now);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
+      }
+    }
+
+    function speak(text) {
+      if (synth.speaking) synth.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'es-ES';
+      utter.rate = 0.9;
+      synth.speak(utter);
+    }
+
+    // --- LÓGICA DRAG & DROP ---
+    let correctCount = 0;
+
+    // Configurar arrastrables
+    document.querySelectorAll('.traffic-lens').forEach(lens => {
+      lens.addEventListener('dragstart', e => {
+        e.dataTransfer.setData('color', lens.dataset.color);
+        e.dataTransfer.setData('id', lens.id);
+        setTimeout(() => lens.style.opacity = '0.5', 0);
+      });
+
+      lens.addEventListener('dragend', () => {
+        lens.style.opacity = '1';
+      });
+    });
+
+    // Configurar zonas de destino (sockets)
+    document.querySelectorAll('.light-socket').forEach(socket => {
+      socket.addEventListener('dragover', e => {
+        e.preventDefault();
+        if (!socket.hasChildNodes()) {
+          socket.classList.add('hovered');
+        }
+      });
+
+      socket.addEventListener('dragleave', () => {
+        socket.classList.remove('hovered');
+      });
+
+      socket.addEventListener('drop', e => {
+        e.preventDefault();
+        socket.classList.remove('hovered');
+
+        // Si ya tiene una luz puesta, ignorar
+        if (socket.hasChildNodes()) return;
+
+        const draggedColor = e.dataTransfer.getData('color');
+        const draggedId = e.dataTransfer.getData('id');
+        const targetColor = socket.dataset.color;
+
+        if (draggedColor === targetColor) {
+          // --- CORRECTO ---
+          playSound('snap');
+          
+          // Mover visualmente el elemento
+          const originalLens = document.getElementById(draggedId);
+          // Clonamos o movemos. Aquí movemos y cambiamos estilo.
+          originalLens.classList.add('placed');
+          
+          // Añadimos efecto de brillo según el color
+          if(targetColor === 'red') originalLens.classList.add('glow-red');
+          if(targetColor === 'yellow') originalLens.classList.add('glow-yellow');
+          if(targetColor === 'green') originalLens.classList.add('glow-green');
+
+          socket.appendChild(originalLens);
+          correctCount++;
+
+          // Voz y Feedback
+          switch(targetColor) {
+            case 'red': speak("Rojo. ¡Alto! Los coches paran."); break;
+            case 'yellow': speak("Amarillo. ¡Espera! Atento al cambio."); break;
+            case 'green': speak("Verde. ¡Adelante! Puedes pasar."); break;
+          }
+
+          // Verificar Victoria
+          if (correctCount === 3) {
+            setTimeout(victory, 1000);
+          }
+
+        } else {
+          // --- INCORRECTO ---
+          playSound('error');
+          socket.style.borderColor = '#ef4444'; // Borde rojo momentáneo
+          setTimeout(() => socket.style.borderColor = '#374151', 500);
+          
+          speak("Ese no va ahí. Intenta de nuevo.");
+        }
+      });
+    });
+
+    function victory() {
+      confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+      Swal.fire({
+        title: "¡Semáforo Listo! 🚦✨",
+        text: "Has arreglado el semáforo. ¡Buen trabajo!",
+        icon: "success",
+        confirmButtonText: "Reiniciar",
+        confirmButtonColor: "#10b981"
+      }).then(() => {
+        window.location.reload();
+      });
+    }
+
+  </script>
+</body>
+</html>

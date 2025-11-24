@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lectura de Colores</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/default.css">
+  <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/scroll-behaviour.min.js"></script>
+  <script>
+    MobileDragDrop.polyfill({
+      dragImageTranslateOverride: MobileDragDrop.scrollBehaviour.scrollBehaviourDragImageTranslateOverride
+    });
+  </script>
+
+  <style>
+    body { font-family: 'Fredoka', sans-serif; }
+
+    /* Fondo animado estilo escolar */
+    .school-bg {
+      background-color: #fdfbf7;
+      background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    /* Líneas de cuaderno */
+    .notebook-line {
+      border-bottom: 2px solid #cbd5e1; /* Línea base gris */
+      position: relative;
+    }
+    /* Línea punteada superior e inferior para simular caligrafía (opcional) */
+    .notebook-line::after {
+      content: '';
+      position: absolute;
+      bottom: 2.5rem; /* Altura de la letra */
+      left: 0;
+      width: 100%;
+      height: 1px;
+      border-bottom: 2px dashed #e2e8f0;
+      z-index: 0;
+    }
+
+    /* Elementos */
+    .sentence-row {
+      display: flex;
+      align-items: flex-end; /* Alinear a la línea base */
+      gap: 1rem;
+      padding-bottom: 0.5rem;
+      position: relative;
+      z-index: 10;
+    }
+
+    .drop-zone {
+      width: 3.5rem;
+      height: 3.5rem;
+      border-radius: 50%;
+      border: 3px dashed #94a3b8;
+      background-color: rgba(255,255,255,0.5);
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .drop-zone.hovered {
+      transform: scale(1.1);
+      border-color: #3b82f6;
+      background-color: #dbeafe;
+    }
+    .drop-zone.filled {
+      border: none;
+      animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    /* Colores arrastrables */
+    .color-blob {
+      width: 4rem;
+      height: 4rem;
+      border-radius: 50%;
+      cursor: grab;
+      transition: transform 0.2s;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      border: 4px solid white;
+    }
+    .color-blob:active {
+      cursor: grabbing;
+      transform: scale(0.9);
+    }
+    .color-blob.dragging {
+      opacity: 0.5;
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0); }
+      100% { transform: scale(1); }
+    }
+  </style>
+</head>
+
+<body class="school-bg min-h-screen flex flex-col items-center justify-center p-4">
+
+  <div class="max-w-3xl w-full bg-white rounded-3xl shadow-xl border-4 border-slate-100 p-6 md:p-10 relative">
+    
+    <div class="flex justify-between items-center mb-8">
+      <a href="../index.html" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-xl font-bold transition flex items-center gap-2 text-sm">
+        ⬅ Salir
+      </a>
+      <h1 class="text-2xl font-bold text-slate-700">Lectura de Colores</h1>
+      <div class="w-20"></div>
+    </div>
+
+    <div id="sentencesContainer" class="flex flex-col gap-8 mb-10">
+      </div>
+
+    <div class="bg-slate-50 rounded-2xl p-6 border-t-4 border-slate-200">
+      <p class="text-center text-slate-400 font-bold mb-4 uppercase text-xs tracking-widest">Arrastra el color correcto</p>
+      <div id="colorPalette" class="flex flex-wrap justify-center gap-6">
+        </div>
+    </div>
+
+  </div>
+
+  <script>
+    // --- SONIDOS ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      const now = audioCtx.currentTime;
+
+      if (type === 'pop') {
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now); osc.stop(now + 0.1);
+      } else if (type === 'success') {
+        osc.type = 'triangle'; 
+        osc.frequency.setValueAtTime(300, now); osc.frequency.setValueAtTime(500, now + 0.1);
+        gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
+      } else if (type === 'error') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.linearRampToValueAtTime(100, now + 0.2);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+        osc.start(now); osc.stop(now + 0.2);
+      }
+    }
+
+    // --- DATOS DEL JUEGO ---
+    // Estructura: "La [Manzana] es [Rojo]"
+    const sentencesData = [
+      { article: "La", emoji: "🍎", objectName: "manzana", colorId: "red", colorCss: "bg-red-500" },
+      { article: "El", emoji: "🚘", objectName: "auto", colorId: "blue", colorCss: "bg-blue-600" },
+      { article: "La", emoji: "🐸", objectName: "rana", colorId: "green", colorCss: "bg-green-500" },
+      { article: "El", emoji: "☀️", objectName: "sol", colorId: "yellow", colorCss: "bg-yellow-400" },
+      { article: "La", emoji: "🍇", objectName: "uva", colorId: "purple", colorCss: "bg-purple-600" }
+    ];
+
+    let correctCount = 0;
+
+    // --- INICIALIZAR ---
+    function initGame() {
+      const container = document.getElementById("sentencesContainer");
+      const palette = document.getElementById("colorPalette");
+      
+      container.innerHTML = "";
+      palette.innerHTML = "";
+      correctCount = 0;
+
+      // 1. Crear las oraciones (Renglones)
+      sentencesData.forEach((item, index) => {
+        const row = document.createElement("div");
+        row.className = "notebook-line pb-2";
+        
+        row.innerHTML = `
+          <div class="sentence-row text-4xl md:text-5xl text-slate-800 font-bold">
+            <span>${item.article}</span>
+            <span class="transform hover:scale-110 transition cursor-help" title="${item.objectName}">${item.emoji}</span>
+            <span>es</span>
+            <div class="drop-zone" data-target="${item.colorId}" id="zone-${index}"></div>
+            <span class="text-slate-800">.</span>
+          </div>
+        `;
+
+        // Eventos Drop
+        const zone = row.querySelector(".drop-zone");
+        zone.addEventListener("dragover", e => {
+          e.preventDefault();
+          if (!zone.classList.contains("filled")) zone.classList.add("hovered");
+        });
+        zone.addEventListener("dragleave", () => zone.classList.remove("hovered"));
+        zone.addEventListener("drop", e => handleDrop(e, zone));
+
+        container.appendChild(row);
+      });
+
+      // 2. Crear la paleta de colores (Desordenada)
+      // Duplicamos la data pero solo necesitamos los colores
+      const colors = [...sentencesData].sort(() => Math.random() - 0.5);
+
+      colors.forEach(item => {
+        const blob = document.createElement("div");
+        blob.className = `color-blob ${item.colorCss}`;
+        blob.draggable = true;
+        blob.dataset.colorId = item.colorId;
+        blob.dataset.colorCss = item.colorCss;
+        
+        // Eventos Drag
+        blob.addEventListener("dragstart", e => {
+          playSound('pop');
+          e.dataTransfer.setData("colorId", item.colorId);
+          e.dataTransfer.setData("colorCss", item.colorCss);
+          blob.classList.add("dragging");
+        });
+        blob.addEventListener("dragend", () => blob.classList.remove("dragging"));
+
+        palette.appendChild(blob);
+      });
+    }
+
+    // --- MANEJO DEL DROP ---
+    function handleDrop(e, zone) {
+      e.preventDefault();
+      zone.classList.remove("hovered");
+
+      // Si ya está lleno, no hacer nada
+      if (zone.classList.contains("filled")) return;
+
+      const draggedColorId = e.dataTransfer.getData("colorId");
+      const draggedColorCss = e.dataTransfer.getData("colorCss");
+      const targetColorId = zone.dataset.target;
+
+      if (draggedColorId === targetColorId) {
+        // CORRECTO
+        playSound('success');
+        zone.classList.add("filled", draggedColorCss); // Pinta el círculo
+        // Quitamos el borde dashed para que se vea sólido
+        zone.style.border = "none";
+        
+        correctCount++;
+
+        // Verificar Victoria
+        if (correctCount === sentencesData.length) {
+          setTimeout(victory, 500);
+        }
+
+      } else {
+        // INCORRECTO
+        playSound('error');
+        zone.classList.add("bg-red-100", "border-red-400");
+        setTimeout(() => {
+          zone.classList.remove("bg-red-100", "border-red-400");
+        }, 500);
+
+        Swal.fire({
+          toast: true,
+          position: 'top',
+          icon: 'warning',
+          title: 'Ups, ese color no es.',
+          showConfirmButton: false,
+          timer: 1500
+        });
+      }
+    }
+
+    function victory() {
+      confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+      Swal.fire({
+        title: "¡Leíste todo! 📖✨",
+        text: "¡Has completado las oraciones de colores!",
+        icon: "success",
+        confirmButtonText: "Volver a jugar",
+        confirmButtonColor: "#3b82f6"
+      }).then(() => {
+        // Reiniciar mezclando de nuevo
+        initGame();
+      });
+    }
+
+    // Arrancar
+    initGame();
+
+  </script>
+</body>
+</html>

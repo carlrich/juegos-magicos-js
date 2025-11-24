@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Palabras Escondidas</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    body { font-family: 'Fredoka', sans-serif; }
+
+    /* Fondo animado */
+    @keyframes gradientBG {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .bg-animated {
+      background: linear-gradient(-45deg, #c4b5fd, #818cf8, #60a5fa, #34d399);
+      background-size: 400% 400%;
+      animation: gradientBG 15s ease infinite;
+    }
+
+    /* Contenedor de la Imagen y los Tiles */
+    .image-container {
+      position: relative;
+      width: 300px;
+      height: 300px;
+      border-radius: 1.5rem;
+      overflow: hidden;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      border: 4px solid white;
+    }
+
+    /* La imagen de fondo */
+    .hidden-image {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* La cuadrícula de tiles que tapan la imagen */
+    .tile-grid {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+    }
+
+    /* Los cuadros individuales que tapan */
+    .cover-tile {
+      background-color: #bfdbfe; /* Azul clarito */
+      border: 2px solid white;
+      transition: all 0.5s ease-out;
+      opacity: 1;
+      transform: scale(1);
+    }
+    /* Clase para ocultar el tile suavemente */
+    .cover-tile.revealed {
+      opacity: 0;
+      transform: scale(0.8);
+      pointer-events: none;
+    }
+
+    /* Huecos de las letras */
+    .letter-slot {
+      width: 3rem;
+      height: 4rem;
+      border-bottom: 4px solid #818cf8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      font-weight: bold;
+      color: #4f46e5;
+      margin: 0 0.25rem;
+      transition: all 0.3s;
+    }
+    /* Animación cuando aparece una letra */
+    .pop-in { animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+    @keyframes pop { from {transform: scale(0); opacity:0;} to {transform: scale(1); opacity:1;} }
+
+    /* Botones del teclado */
+    .key-btn {
+      transition: all 0.1s;
+      border-bottom-width: 4px;
+    }
+    .key-btn:active:not(:disabled) {
+      transform: translateY(2px);
+      border-bottom-width: 2px;
+    }
+    .key-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+        border-bottom-width: 0;
+    }
+    .key-correct { background-color: #4ade80 !important; border-color: #22c55e !important; color: white; }
+    .key-wrong { background-color: #f87171 !important; border-color: #dc2626 !important; color: white; }
+
+  </style>
+</head>
+
+<body class="bg-animated min-h-screen flex flex-col items-center justify-center p-4">
+
+  <div class="max-w-4xl w-full bg-white/80 backdrop-blur-md rounded-3xl shadow-2xl p-6 border-4 border-white/50 flex flex-col items-center">
+    
+    <div class="w-full flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+      <a href="../index.html" class="bg-white text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-xl font-bold shadow-sm transition flex items-center gap-2 text-sm">
+        ⬅ Salir
+      </a>
+      <h1 class="text-2xl font-bold text-indigo-700">Nivel <span id="levelDisplay">1</span></h1>
+      <div class="bg-indigo-100 text-indigo-700 px-4 py-2 rounded-xl font-bold shadow-sm text-sm flex items-center gap-2">
+        Vidas: <span id="livesDisplay" class="text-red-500 text-xl">❤️❤️❤️❤️❤️</span>
+      </div>
+    </div>
+    
+    <div class="flex flex-col md:flex-row gap-8 items-center w-full justify-center">
+        
+        <div class="image-container">
+            <img id="gameImage" src="" alt="Imagen oculta" class="hidden-image">
+            <div id="tileGrid" class="tile-grid">
+                </div>
+        </div>
+
+        <div class="flex flex-col items-center w-full max-w-md">
+            
+            <div id="wordContainer" class="flex flex-wrap justify-center mb-8 min-h-[4rem]">
+                </div>
+
+            <div id="keyboard" class="grid grid-cols-7 gap-2 w-full">
+                </div>
+
+        </div>
+    </div>
+
+  </div>
+
+  <script>
+    // --- SONIDOS ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      const now = audioCtx.currentTime;
+
+      if (type === 'correct') {
+        osc.type = 'sine'; osc.frequency.setValueAtTime(600, now); osc.frequency.exponentialRampToValueAtTime(1000, now + 0.2);
+        gain.gain.setValueAtTime(0.2, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
+      } else if (type === 'wrong') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(200, now); osc.frequency.linearRampToValueAtTime(100, now + 0.3);
+        gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
+      } else if (type === 'win') {
+         osc.type = 'triangle'; osc.frequency.setValueAtTime(400, now); osc.frequency.setValueAtTime(600, now + 0.2); osc.frequency.setValueAtTime(800, now + 0.4);
+         gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.6);
+         osc.start(now); osc.stop(now + 0.6);
+      }
+    }
+
+    // --- DATOS DE NIVELES ---
+    // He seleccionado imágenes bonitas de estilo cartoon que funcionan siempre.
+    const levels = [
+      { word: "GATO", img: "https://img.freepik.com/free-vector/cute-cat-sitting-cartoon-vector-icon-illustration-animal-nature-icon-concept-isolated-premium-vector-flat-cartoon-style_138676-4148.jpg?w=740" },
+      { word: "SOL", img: "https://img.freepik.com/vector-premium/lindo-alegre-sol-vector-pegatinas_631230-3620.jpg?semt=ais_hybrid&w=740&q=80" },
+      { word: "CASA", img: "https://img.freepik.com/vector-premium/vector-casa-diseno-plano-color-marron-ilustracion-vector-casa-simple-aislado-blanco_615232-986.jpg?semt=ais_hybrid&w=740&q=80" },
+      { word: "ARBOL", img: "https://img.freepik.com/vector-premium/ilustracion-vectorial-arbol-clipart-estilo-dibujos-animados-png-sobre-fondo-blanco_1119746-8839.jpg?semt=ais_hybrid&w=740&q=80" },
+      { word: "PELOTA", img: "https://img.freepik.com/vector-premium/pelota-futbol_506517-75.jpg?semt=ais_hybrid&w=740&q=80" },
+      { word: "LIBRO", img: "https://img.freepik.com/vector-gratis/icono-vectorial-dibujos-animados-flotante-ilustracion-educacion-icono-objeto-vector-plano-aislado_138676-13661.jpg?semt=ais_hybrid&w=740&q=80" },
+      { word: "NUBE", img: "https://img.freepik.com/vector-gratis/nube-blanca_23-2147502637.jpg?semt=ais_hybrid&w=740&q=80" },
+      { word: "CIELO", img: "https://img.freepik.com/vector-gratis/fondo-pantalla-sky-videoconferencia_23-2148613913.jpg?semt=ais_hybrid&w=740&q=80" },
+      { word: "FLOR", img: "https://img.freepik.com/vector-premium/temporada-verano-simple-flor-dos-vectores-hojas-verdes_1278800-6160.jpg?semt=ais_hybrid&w=740&q=80" },
+      { word: "PERRO", img: "https://img.freepik.com/vector-gratis/ilustracion-icono-vector-dibujos-animados-hueso-mordedura-perro-pug-lindo-naturaleza-animal-icono-concepto-aislado-premium_138676-7370.jpg?semt=ais_hybrid&w=740&q=80" }
+    ];
+
+    const alphabet = "ABCDEFGHIJKLMNÑOPQRSTUVWXYZ".split("");
+    let currentLevelIdx = 0;
+    let currentWord = "";
+    let guessedLetters = new Set();
+    let wrongGuesses = 0;
+    const maxWrong = 5;
+    let availableTiles = [];
+
+    // --- LÓGICA DEL JUEGO ---
+
+    function startLevel() {
+        currentWord = levels[currentLevelIdx].word;
+        document.getElementById("gameImage").src = levels[currentLevelIdx].img;
+        document.getElementById("levelDisplay").innerText = currentLevelIdx + 1;
+        
+        guessedLetters.clear();
+        wrongGuesses = 0;
+        updateLives();
+
+        // 1. Resetear y crear tiles (cuadros que tapan)
+        const tileGrid = document.getElementById("tileGrid");
+        tileGrid.innerHTML = "";
+        availableTiles = [];
+        for(let i=0; i<9; i++) {
+            const tile = document.createElement("div");
+            tile.className = "cover-tile";
+            tile.id = `tile-${i}`;
+            tileGrid.appendChild(tile);
+            availableTiles.push(tile);
+        }
+
+        // 2. Crear huecos para la palabra
+        const wordContainer = document.getElementById("wordContainer");
+        wordContainer.innerHTML = "";
+        currentWord.split("").forEach(() => {
+            const slot = document.createElement("div");
+            slot.className = "letter-slot";
+            wordContainer.appendChild(slot);
+        });
+
+        // 3. Crear teclado
+        renderKeyboard();
+        updateWordDisplay();
+    }
+
+    function renderKeyboard() {
+        const keyboard = document.getElementById("keyboard");
+        keyboard.innerHTML = "";
+        alphabet.forEach(letter => {
+            const btn = document.createElement("button");
+            btn.innerText = letter;
+            btn.className = `key-btn bg-white border-indigo-200 text-indigo-700 hover:bg-indigo-100 font-bold py-3 rounded-xl shadow-sm text-lg`;
+            btn.onclick = () => handleGuess(letter, btn);
+            keyboard.appendChild(btn);
+        });
+    }
+
+    function handleGuess(letter, btnElement) {
+        if(guessedLetters.has(letter) || wrongGuesses >= maxWrong) return;
+
+        guessedLetters.add(letter);
+        btnElement.disabled = true;
+
+        if(currentWord.includes(letter)) {
+            // ACIERTO
+            playSound('correct');
+            btnElement.classList.add("key-correct");
+            btnElement.classList.remove("bg-white", "border-indigo-200", "text-indigo-700");
+            
+            revealTile(); // Destapar un trozo de imagen
+            updateWordDisplay();
+            checkWin();
+        } else {
+            // FALLO
+            playSound('wrong');
+            btnElement.classList.add("key-wrong");
+            btnElement.classList.remove("bg-white", "border-indigo-200", "text-indigo-700");
+            wrongGuesses++;
+            updateLives();
+            checkLoss();
+        }
+    }
+
+    function revealTile() {
+        // Elegir un tile al azar de los disponibles y ocultarlo
+        if(availableTiles.length > 0) {
+            const randomIndex = Math.floor(Math.random() * availableTiles.length);
+            const tileToReveal = availableTiles[randomIndex];
+            tileToReveal.classList.add("revealed");
+            // Quitar de la lista de disponibles
+            availableTiles.splice(randomIndex, 1);
+        }
+    }
+
+    function updateWordDisplay() {
+        const slots = document.querySelectorAll(".letter-slot");
+        currentWord.split("").forEach((letter, index) => {
+            if(guessedLetters.has(letter)) {
+                if(slots[index].innerText === "") {
+                     slots[index].innerText = letter;
+                     slots[index].classList.add("pop-in"); // Animación al aparecer
+                }
+            } else {
+                slots[index].innerText = "";
+            }
+        });
+    }
+
+    function updateLives() {
+        let hearts = "";
+        for(let i=0; i<maxWrong; i++) {
+            hearts += i < (maxWrong - wrongGuesses) ? "❤️" : "🖤";
+        }
+        document.getElementById("livesDisplay").innerText = hearts;
+    }
+
+    function checkWin() {
+        const isWon = currentWord.split("").every(l => guessedLetters.has(l));
+        if(isWon) {
+            // Destapar toda la imagen al ganar
+            availableTiles.forEach(tile => tile.classList.add("revealed"));
+            
+            playSound('win');
+            confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+
+            Swal.fire({
+                title: "¡Excelente! 🎉",
+                text: `La palabra era: ${currentWord}`,
+                imageUrl: levels[currentLevelIdx].img,
+                imageWidth: 200,
+                imageAlt: currentWord,
+                confirmButtonText: "Siguiente Nivel ➡",
+                confirmButtonColor: "#4f46e5",
+                padding: '2em',
+                backdrop: `rgba(79, 70, 229, 0.2)`
+            }).then(() => {
+                currentLevelIdx++;
+                if(currentLevelIdx < levels.length) {
+                    startLevel();
+                } else {
+                    Swal.fire({
+                        title: "¡Juego Completado! 🏆",
+                        text: "¡Eres un maestro de las palabras!",
+                        icon: "success",
+                        confirmButtonText: "Volver al Menú"
+                    }).then(() => window.location.href = "../index.html");
+                }
+            });
+        }
+    }
+
+    function checkLoss() {
+        if(wrongGuesses >= maxWrong) {
+            Swal.fire({
+                title: "¡Oh no! 😢",
+                text: `Te quedaste sin vidas. La palabra era: ${currentWord}`,
+                icon: "error",
+                confirmButtonText: "Intentar de nuevo 🔄",
+                confirmButtonColor: "#f87171"
+            }).then(() => {
+                // Reiniciar el mismo nivel
+                startLevel();
+            });
+        }
+    }
+
+    // Iniciar juego
+    startLevel();
+
+  </script>
+
+</body>
+</html>

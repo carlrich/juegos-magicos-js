@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Completa la Frase</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/default.css">
+  <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/scroll-behaviour.min.js"></script>
+  <script>
+    MobileDragDrop.polyfill({ dragImageTranslateOverride: MobileDragDrop.scrollBehaviour.scrollBehaviourDragImageTranslateOverride });
+  </script>
+
+  <style>
+    body { font-family: 'Fredoka', sans-serif; }
+
+    /* Fondo de cuaderno escolar */
+    .notebook-bg {
+      background-color: #f8fafc;
+      background-image: linear-gradient(#e2e8f0 1px, transparent 1px);
+      background-size: 100% 40px; /* Renglones */
+    }
+
+    /* Contenedor de la oración */
+    .sentence-row {
+      background: white;
+      border-radius: 16px;
+      padding: 10px 20px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      border: 2px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+      transition: transform 0.3s;
+    }
+    .sentence-row:hover { transform: scale(1.02); }
+
+    /* Zona de soltar (El hueco) */
+    .drop-zone {
+      width: 80px;
+      height: 60px;
+      border: 3px dashed #94a3b8;
+      border-radius: 12px;
+      background-color: #f1f5f9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s;
+    }
+    .drop-zone.hovered {
+      background-color: #dbeafe;
+      border-color: #3b82f6;
+    }
+    .drop-zone.filled {
+      border: 2px solid #22c55e;
+      background-color: #dcfce7;
+      border-style: solid;
+    }
+
+    /* Fichas de Artículos (Arrastrables) */
+    .article-token {
+      width: 70px;
+      height: 50px;
+      background: white;
+      border: 2px solid #cbd5e1;
+      border-bottom-width: 5px; /* Efecto 3D */
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: #334155;
+      cursor: grab;
+      user-select: none;
+      transition: transform 0.1s;
+    }
+    .article-token:active {
+      transform: translateY(3px);
+      border-bottom-width: 2px;
+      cursor: grabbing;
+    }
+    /* Colores específicos para cada artículo */
+    .token-el { border-color: #60a5fa; color: #2563eb; }
+    .token-la { border-color: #f472b6; color: #db2777; }
+    .token-los { border-color: #34d399; color: #059669; }
+    .token-las { border-color: #fbbf24; color: #d97706; }
+
+    /* Imágenes pequeñas */
+    .mini-img {
+      width: 50px;
+      height: 50px;
+      object-fit: contain;
+    }
+
+    .word-text {
+      font-size: 1.2rem;
+      color: #475569;
+      font-weight: 600;
+    }
+  </style>
+</head>
+
+<body class="notebook-bg min-h-screen flex flex-col items-center p-4">
+
+  <div class="w-full max-w-3xl flex justify-between items-center mb-8 mt-4 bg-white/80 p-4 rounded-2xl shadow-sm backdrop-blur">
+    <a href="../index.html" class="text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2">
+      ⬅ Salir
+    </a>
+    <h1 class="text-2xl font-bold text-slate-700">Nivel <span id="levelIndicator" class="text-blue-600">1</span></h1>
+    <div class="w-10"></div>
+  </div>
+
+  <div class="w-full max-w-3xl flex flex-col gap-4" id="gameArea">
+    </div>
+
+  <div class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white p-4 rounded-2xl shadow-2xl border-2 border-slate-200 flex gap-4 z-50">
+    <div class="article-token token-el" draggable="true" data-val="El">El</div>
+    <div class="article-token token-la" draggable="true" data-val="La">La</div>
+    <div class="article-token token-los" draggable="true" data-val="Los">Los</div>
+    <div class="article-token token-las" draggable="true" data-val="Las">Las</div>
+  </div>
+
+  <script>
+    // --- SONIDOS ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      const now = audioCtx.currentTime;
+
+      if (type === 'pop') {
+        osc.frequency.setValueAtTime(400, now); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now); osc.stop(now + 0.1);
+      } else if (type === 'success') {
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(600, now); osc.frequency.linearRampToValueAtTime(800, now + 0.2);
+        gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
+      } else if (type === 'error') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+        osc.start(now); osc.stop(now + 0.2);
+      }
+    }
+
+    // --- DATOS DE NIVELES ---
+    const levels = [
+      { // Nivel 1: Singular Simple
+        questions: [
+          { answer: "La", imgSubj: "https://cdn-icons-png.flaticon.com/128/2355/2355400.png", text: "es de", imgObj: "https://cdn-icons-png.flaticon.com/128/683/683456.png" }, // Mesa - Madera
+          { answer: "El", imgSubj: "https://cdn-icons-png.flaticon.com/128/1818/1818405.png", text: "toma", imgObj: "https://cdn-icons-png.flaticon.com/128/6017/6017647.png" }, // Gato - Leche
+          { answer: "La", imgSubj: "https://cdn-icons-png.flaticon.com/128/2926/2926754.png", text: "es", imgObj: "https://cdn-icons-png.flaticon.com/128/594/594739.png" } // Flor - Roja
+        ]
+      },
+      { // Nivel 2: Plural Simple
+        questions: [
+          { answer: "Los", imgSubj: "https://cdn-icons-png.flaticon.com/128/1761/1761552.png", text: "corren", imgObj: "https://cdn-icons-png.flaticon.com/128/5273/5273675.png" }, // Niños - Parque
+          { answer: "Las", imgSubj: "https://cdn-icons-png.flaticon.com/128/9998/9998948.png", text: "ponen", imgObj: "https://cdn-icons-png.flaticon.com/128/5508/5508472.png" }, // Gallinas - Huevos
+          { answer: "Los", imgSubj: "https://cdn-icons-png.flaticon.com/128/2931/2931513.png", text: "son", imgObj: "https://cdn-icons-png.flaticon.com/128/13814/13814806.png" } // Cerdos - Rosados
+        ]
+      },
+      { // Nivel 3: Masculino vs Femenino
+        questions: [
+          { answer: "El", imgSubj: "https://cdn-icons-png.flaticon.com/512/1164/1164954.png", text: "es", imgObj: "https://cdn-icons-png.flaticon.com/128/14026/14026175.png" }, // Sol - Amarillo
+          { answer: "La", imgSubj: "https://cdn-icons-png.flaticon.com/128/2007/2007962.png", text: "sale de", imgObj: "https://cdn-icons-png.flaticon.com/128/3580/3580690.png" }, // Luna - Noche
+          { answer: "El", imgSubj: "https://cdn-icons-png.flaticon.com/128/1048/1048314.png", text: "es", imgObj: "https://cdn-icons-png.flaticon.com/128/14026/14026608.png" } // Coche - Azul
+        ]
+      },
+      { // Nivel 4: Animales
+        questions: [
+          { answer: "El", imgSubj: "https://cdn-icons-png.flaticon.com/512/616/616554.png", text: "come", imgObj: "https://cdn-icons-png.flaticon.com/128/1291/1291961.png" }, // Perro - Hueso
+          { answer: "Las", imgSubj: "https://cdn-icons-png.flaticon.com/128/11566/11566131.png", text: "dan", imgObj: "https://cdn-icons-png.flaticon.com/128/4511/4511485.png" }, // Abejas - Miel
+          { answer: "Los", imgSubj: "https://cdn-icons-png.flaticon.com/128/2371/2371907.png", text: "nadan en", imgObj: "https://cdn-icons-png.flaticon.com/128/3075/3075404.png" } // Peces - Agua
+        ]
+      },
+      { // Nivel 5: Objetos
+        questions: [
+          { answer: "La", imgSubj: "https://cdn-icons-png.flaticon.com/128/2271/2271494.png", text: "es de", imgObj: "https://cdn-icons-png.flaticon.com/128/683/683456.png" }, // Silla - Madera
+          { answer: "El", imgSubj: "https://cdn-icons-png.flaticon.com/128/3145/3145765.png", text: "es para", imgObj: "https://cdn-icons-png.flaticon.com/128/2436/2436890.png" }, // Libro - Leer
+          { answer: "Las", imgSubj: "https://cdn-icons-png.flaticon.com/128/3000/3000496.png", text: "sirven para", imgObj: "https://cdn-icons-png.flaticon.com/128/2469/2469994.png" } // Botas - Lluvia
+        ]
+      }
+    ];
+
+    let currentLevel = 0;
+    let correctInLevel = 0;
+
+    // --- INICIALIZAR ---
+    function loadLevel() {
+      const gameArea = document.getElementById("gameArea");
+      document.getElementById("levelIndicator").innerText = currentLevel + 1;
+      gameArea.innerHTML = "";
+      correctInLevel = 0;
+
+      const levelData = levels[currentLevel];
+
+      // Generar las 3 oraciones
+      levelData.questions.forEach((q, index) => {
+        const row = document.createElement("div");
+        row.className = "sentence-row animate-in slide-in-from-right duration-500";
+        row.style.animationDelay = `${index * 150}ms`;
+
+        row.innerHTML = `
+          <div class="drop-zone" data-answer="${q.answer}"></div>
+          <img src="${q.imgSubj}" class="mini-img">
+          <span class="word-text">${q.text}</span>
+          <img src="${q.imgObj}" class="mini-img">
+        `;
+
+        gameArea.appendChild(row);
+
+        // Configurar Drop
+        const zone = row.querySelector('.drop-zone');
+        zone.addEventListener("dragover", e => {
+          e.preventDefault();
+          if (!zone.classList.contains('filled')) zone.classList.add('hovered');
+        });
+        zone.addEventListener("dragleave", () => zone.classList.remove('hovered'));
+        zone.addEventListener("drop", e => handleDrop(e, zone));
+      });
+    }
+
+    // --- DRAG DE LOS ARTÍCULOS ---
+    document.querySelectorAll('.article-token').forEach(token => {
+      token.addEventListener("dragstart", e => {
+        playSound('pop');
+        e.dataTransfer.setData("text/plain", token.dataset.val);
+        e.dataTransfer.setData("colorClass", token.classList[1]); // Capturar clase de color (token-el, etc)
+      });
+    });
+
+    // --- DROP ---
+    function handleDrop(e, zone) {
+      e.preventDefault();
+      zone.classList.remove('hovered');
+      
+      if(zone.classList.contains('filled')) return;
+
+      const droppedVal = e.dataTransfer.getData("text/plain");
+      const correctVal = zone.dataset.answer;
+      const colorClass = e.dataTransfer.getData("colorClass");
+
+      if(droppedVal === correctVal) {
+        // CORRECTO
+        playSound('success');
+        zone.classList.add('filled');
+        
+        // Crear el token dentro de la zona (visual)
+        zone.innerHTML = `
+          <div class="article-token ${colorClass}" style="width: 100%; height: 100%; border:none; border-radius: 8px;">${droppedVal}</div>
+        `;
+        
+        correctInLevel++;
+        if(correctInLevel === 3) {
+          setTimeout(levelComplete, 500);
+        }
+
+      } else {
+        // INCORRECTO
+        playSound('error');
+        zone.style.backgroundColor = "#fee2e2"; // Rojo
+        zone.style.borderColor = "#ef4444";
+        
+        Swal.fire({
+          toast: true, position: 'top', icon: 'error',
+          title: 'Ups, ese no concuerda', showConfirmButton: false, timer: 1000
+        });
+
+        setTimeout(() => {
+          zone.style.backgroundColor = "#f1f5f9";
+          zone.style.borderColor = "#94a3b8";
+        }, 500);
+      }
+    }
+
+    function levelComplete() {
+      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+      
+      Swal.fire({
+        title: "¡Muy bien! 🌟",
+        text: "Oraciones completadas.",
+        icon: "success",
+        confirmButtonText: "Siguiente Nivel",
+        confirmButtonColor: "#3b82f6"
+      }).then(() => {
+        currentLevel++;
+        if(currentLevel < levels.length) {
+          loadLevel();
+        } else {
+          Swal.fire({
+            title: "¡Eres un Campeón! 🏆",
+            text: "Has completado todos los niveles de lectura.",
+            icon: "success",
+            confirmButtonText: "Volver al Menú"
+          }).then(() => window.location.href = "../index.html");
+        }
+      });
+    }
+
+    // Iniciar
+    loadLevel();
+  </script>
+</body>
+</html>

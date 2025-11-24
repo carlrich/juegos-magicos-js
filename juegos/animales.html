@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>¿Qué nos da cada animal?</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    body { font-family: 'Fredoka', sans-serif; }
+
+    /* Fondo de granja suave */
+    .farm-bg {
+      background-color: #fefce8; /* Amarillo muy claro */
+      background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23fbbf24' fill-opacity='0.1'%3E%3Cpath d='M20 20l10-10h-20l10 10zm0 0l10 10h-20l10-10zM0 0l10 10H0V0zm0 40l10-10H0v10zm40 0l-10-10h10v10zm0-40l-10 10h10V0z'/%3E%3C/g%3E%3C/svg%3E");
+    }
+
+    /* Contenedor del juego */
+    .game-container {
+      position: relative;
+      width: 100%;
+      max-width: 800px;
+      background: white;
+      border-radius: 20px;
+      padding: 20px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+      border: 4px solid #fcd34d; /* Borde amarillo */
+      display: flex;
+      justify-content: space-between;
+      overflow: hidden; /* Importante para que el SVG no se salga */
+    }
+
+    /* SVG para las líneas (capa superior) */
+    #lines-svg {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none; /* Para que no bloquee los clicks en los puntos */
+      z-index: 10;
+    }
+    /* Línea activa (mientras se arrastra) */
+    .active-line { stroke: #3b82f6; stroke-width: 6; stroke-linecap: round; opacity: 0.7; }
+    /* Línea correcta */
+    .correct-line { stroke: #22c55e; stroke-width: 6; stroke-linecap: round; transition: all 0.3s; }
+    /* Línea incorrecta (momentánea) */
+    .wrong-line { stroke: #ef4444; stroke-width: 6; stroke-linecap: round; transition: all 0.3s; }
+
+
+    /* Columnas y Elementos */
+    .column {
+      display: flex;
+      flex-direction: column;
+      gap: 30px;
+      width: 45%;
+      z-index: 20; /* Encima del SVG */
+    }
+    .item-box {
+      display: flex;
+      align-items: center;
+      background: #fffbeb;
+      border: 3px solid #fde68a;
+      border-radius: 15px;
+      padding: 10px;
+      height: 80px;
+      position: relative;
+      transition: transform 0.2s;
+    }
+    .item-box:hover { transform: scale(1.02); }
+    .item-box img { width: 60px; height: 60px; object-fit: contain; }
+    .item-name { font-weight: bold; color: #78350f; margin-left: 15px; flex-grow: 1; }
+
+    /* Puntos de conexión */
+    .connector-point {
+      width: 24px; height: 24px;
+      background: #78350f;
+      border: 4px solid white;
+      border-radius: 50%;
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      transition: all 0.2s;
+    }
+    .connector-point:hover { transform: translateY(-50%) scale(1.2); background: #3b82f6; }
+    /* Puntos a la derecha en la columna izquierda */
+    .left-col .connector-point { right: -12px; }
+    /* Puntos a la izquierda en la columna derecha */
+    .right-col .connector-point { left: -12px; }
+
+    /* Estado conectado */
+    .item-box.connected { border-color: #22c55e; background: #dcfce7; }
+    .item-box.connected .connector-point { background: #22c55e; pointer-events: none; }
+
+  </style>
+</head>
+
+<body class="farm-bg min-h-screen flex flex-col items-center justify-center p-4 overflow-hidden">
+
+  <div class="absolute top-4 left-4 right-4 flex justify-between items-center">
+    <a href="../index.html" class="bg-white hover:bg-yellow-100 text-yellow-800 px-4 py-2 rounded-xl font-bold shadow-sm transition flex items-center gap-2 text-sm">
+      ⬅ Salir
+    </a>
+    <h1 class="text-xl font-bold text-yellow-900 bg-white/80 px-6 py-2 rounded-full backdrop-blur shadow-sm">
+      🐄 ¿Qué nos da cada animal?
+    </h1>
+    <div class="w-20"></div>
+  </div>
+
+  <div class="game-container mt-16" id="gameContainer">
+    <svg id="lines-svg"></svg>
+    
+    <div class="column left-col" id="animalsCol">
+      </div>
+
+    <div class="column right-col" id="productsCol">
+       </div>
+  </div>
+
+  <script>
+    // --- SONIDO Y VOZ ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const synth = window.speechSynthesis;
+
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      const now = audioCtx.currentTime;
+
+      if (type === 'pop') {
+        osc.frequency.setValueAtTime(400, now); gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now); osc.stop(now + 0.1);
+      } else if (type === 'success') {
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(600, now); osc.frequency.linearRampToValueAtTime(800, now + 0.2);
+        gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+        osc.start(now); osc.stop(now + 0.4);
+      } else if (type === 'error') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now);
+        gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
+      }
+    }
+
+    function speak(text) {
+      if (synth.speaking) synth.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'es-ES'; utter.rate = 0.9;
+      synth.speak(utter);
+    }
+
+    // --- DATOS ---
+    const data = [
+      { id: 'gallina', name: 'Gallina', img: 'https://cdn-icons-png.flaticon.com/128/8204/8204496.png', productId: 'huevos', productName: 'Huevos', productImg: 'https://cdn-icons-png.flaticon.com/128/1951/1951379.png' },
+      { id: 'cerdo', name: 'Cerdo', img: 'https://cdn-icons-png.flaticon.com/128/2931/2931513.png', productId: 'salchicha', productName: 'Salchicha', productImg: 'https://cdn-icons-png.flaticon.com/128/1857/1857881.png' },
+      { id: 'abeja', name: 'Abeja', img: 'https://cdn-icons-png.flaticon.com/512/809/809052.png', productId: 'miel', productName: 'Miel', productImg: 'https://cdn-icons-png.flaticon.com/128/3663/3663732.png' },
+      { id: 'vaca', name: 'Vaca', img: 'https://cdn-icons-png.flaticon.com/512/1998/1998610.png', productId: 'leche', productName: 'Leche', productImg: 'https://cdn-icons-png.flaticon.com/128/6050/6050861.png' },
+      { id: 'oveja', name: 'Oveja', img: 'https://cdn-icons-png.flaticon.com/128/8277/8277647.png', productId: 'lana', productName: 'Lana', productImg: 'https://cdn-icons-png.flaticon.com/128/2972/2972077.png' }
+    ];
+
+    let correctCount = 0;
+    let currentStartPoint = null;
+    let activeLine = null;
+    const svg = document.getElementById('lines-svg');
+    
+    // --- INICIALIZAR ---
+    function initGame() {
+      const animalsCol = document.getElementById("animalsCol");
+      const productsCol = document.getElementById("productsCol");
+
+      // 1. Columna Animales
+      data.forEach(item => {
+        animalsCol.appendChild(createItemBox(item.id, item.name, item.img, 'animal'));
+      });
+
+      // 2. Columna Productos
+      const shuffledProducts = [...data].sort(() => Math.random() - 0.5);
+      shuffledProducts.forEach(item => {
+        productsCol.appendChild(createItemBox(item.productId, item.productName, item.productImg, 'product'));
+      });
+
+      // Eventos Globales de Movimiento
+      document.addEventListener('mousemove', handleMove);
+      document.addEventListener('touchmove', handleMove, { passive: false });
+      document.addEventListener('mouseup', handleEnd);
+      document.addEventListener('touchend', handleEnd);
+    }
+
+    function createItemBox(id, name, img, type) {
+      const box = document.createElement("div");
+      box.className = "item-box";
+      box.dataset.id = id;
+      box.dataset.type = type;
+      box.innerHTML = `<img src="${img}"><span class="item-name">${name}</span>`;
+      
+      const point = document.createElement("div");
+      point.className = "connector-point";
+      point.dataset.parentId = id; 
+      
+      point.addEventListener('mousedown', handleStart);
+      point.addEventListener('touchstart', handleStart, { passive: false });
+      
+      box.appendChild(point);
+      return box;
+    }
+
+    // --- LÓGICA DE DIBUJADO ---
+
+    function getPointCoords(pointElement) {
+      const rect = pointElement.getBoundingClientRect();
+      // CORRECCIÓN: Calcular el rectángulo del contenedor AQUÍ, en vivo.
+      const containerRect = document.getElementById('gameContainer').getBoundingClientRect();
+      
+      return {
+        x: rect.left + rect.width / 2 - containerRect.left,
+        y: rect.top + rect.height / 2 - containerRect.top
+      };
+    }
+
+    function handleStart(e) {
+      e.preventDefault();
+      const point = e.target;
+      const box = point.parentElement;
+
+      if (box.classList.contains('connected')) return;
+
+      playSound('pop');
+      currentStartPoint = point;
+      
+      const coords = getPointCoords(point);
+      activeLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      activeLine.setAttribute('x1', coords.x);
+      activeLine.setAttribute('y1', coords.y);
+      activeLine.setAttribute('x2', coords.x);
+      activeLine.setAttribute('y2', coords.y);
+      activeLine.classList.add('active-line');
+      svg.appendChild(activeLine);
+    }
+
+    function handleMove(e) {
+      if (!activeLine) return;
+      e.preventDefault();
+      
+      // CORRECCIÓN: Calcular contenedor en vivo
+      const containerRect = document.getElementById('gameContainer').getBoundingClientRect();
+      
+      const clientX = e.clientX || e.touches[0].clientX;
+      const clientY = e.clientY || e.touches[0].clientY;
+
+      const mouseX = clientX - containerRect.left;
+      const mouseY = clientY - containerRect.top;
+
+      activeLine.setAttribute('x2', mouseX);
+      activeLine.setAttribute('y2', mouseY);
+    }
+
+    function handleEnd(e) {
+      if (!activeLine) return;
+
+      const clientX = e.clientX || e.changedTouches[0].clientX;
+      const clientY = e.clientY || e.changedTouches[0].clientY;
+      const targetElement = document.elementFromPoint(clientX, clientY);
+      
+      let endPoint = null;
+      if (targetElement && targetElement.classList.contains('connector-point')) {
+        endPoint = targetElement;
+      }
+
+      if (endPoint && endPoint !== currentStartPoint) {
+        const startBox = currentStartPoint.parentElement;
+        const endBox = endPoint.parentElement;
+        
+        if (startBox.dataset.type !== endBox.dataset.type && !endBox.classList.contains('connected')) {
+          
+          const animalId = startBox.dataset.type === 'animal' ? startBox.dataset.id : endBox.dataset.id;
+          const productId = startBox.dataset.type === 'product' ? startBox.dataset.id : endBox.dataset.id;
+          
+          const pair = data.find(item => item.id === animalId && item.productId === productId);
+
+          if (pair) {
+            handleSuccess(startBox, endBox, endPoint);
+          } else {
+            handleError();
+          }
+        } else { handleError(); }
+      } else { handleError(); }
+
+      currentStartPoint = null;
+      activeLine = null;
+    }
+
+    function handleSuccess(startBox, endBox, endPoint) {
+      playSound('success');
+      
+      const endCoords = getPointCoords(endPoint);
+      activeLine.setAttribute('x2', endCoords.x);
+      activeLine.setAttribute('y2', endCoords.y);
+      activeLine.classList.remove('active-line');
+      activeLine.classList.add('correct-line');
+      
+      startBox.classList.add('connected');
+      endBox.classList.add('connected');
+
+      correctCount++;
+      if(correctCount === data.length) setTimeout(victory, 500);
+    }
+
+    function handleError() {
+      playSound('error');
+      activeLine.classList.remove('active-line');
+      activeLine.classList.add('wrong-line');
+      setTimeout(() => {
+        if(activeLine) activeLine.remove();
+      }, 300);
+    }
+
+    function victory() {
+      confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+      speak("¡Muy bien! Has unido a todos los animales.");
+      Swal.fire({
+        title: "¡Excelente trabajo! 🐄🥚",
+        text: "¡Completaste todas las parejas!",
+        icon: "success",
+        confirmButtonText: "Jugar de nuevo",
+        confirmButtonColor: "#fcd34d"
+      }).then(() => window.location.reload());
+    }
+
+    window.onload = initGame;
+  </script>
+</body>
+</html>

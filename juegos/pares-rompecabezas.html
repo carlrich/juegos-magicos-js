@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Safari de Rompecabezas</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/default.css">
+  <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/scroll-behaviour.min.js"></script>
+  <script>
+    MobileDragDrop.polyfill({ dragImageTranslateOverride: MobileDragDrop.scrollBehaviour.scrollBehaviourDragImageTranslateOverride });
+  </script>
+
+  <style>
+    body { font-family: 'Fredoka', sans-serif; }
+
+    /* Fondo de jungla/safari */
+    .jungle-bg {
+      background-color: #f0fdf4;
+      background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%2316a34a' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    }
+
+    /* CONTENEDOR DEL PAR (Donde se unen) */
+    .pair-container {
+      display: flex;
+      border: 4px solid #cbd5e1; /* Borde gris inicial */
+      background: white;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transition: all 0.3s;
+      min-height: 100px;
+    }
+    /* Línea divisoria punteada */
+    .pair-divider {
+        width: 2px;
+        background-image: linear-gradient(to bottom, #cbd5e1 50%, transparent 50%);
+        background-size: 2px 10px;
+    }
+    .pair-container.matched {
+        border-color: #22c55e; /* Verde al acertar */
+        background-color: #dcfce7;
+        transform: scale(1.02);
+    }
+    .pair-container.error {
+        border-color: #ef4444; /* Rojo al fallar */
+        background-color: #fee2e2;
+        animation: shake 0.5s;
+    }
+
+    /* HUECOS INDIVIDUALES (Izquierda/Derecha) */
+    .drop-slot {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f8fafc;
+      transition: background 0.3s;
+    }
+    .drop-slot.hovered { background: #e0f2fe; }
+
+    /* LAS PIEZAS (Mitades) */
+    .puzzle-piece {
+      width: 80px;
+      height: 100px; /* Altura fija para uniformidad */
+      cursor: grab;
+      transition: transform 0.2s;
+      filter: drop-shadow(0 4px 3px rgba(0,0,0,0.1));
+      overflow: hidden; /* CLAVE: oculta lo que sobra de la imagen */
+      background: white;
+      border: 2px solid white;
+      border-radius: 8px;
+      position: relative;
+    }
+    .puzzle-piece:active { cursor: grabbing; transform: scale(1.05) rotate(2deg); }
+    .puzzle-piece.placed { cursor: default; border: none; filter: none; border-radius: 0; width: 100%; height: 100%;}
+
+    /* EL TRUCO CSS PARA PARTIR IMÁGENES */
+    .puzzle-piece img {
+      height: 100%;
+      width: 200%; /* La imagen es el doble de ancha que el contenedor */
+      max-width: none; 
+      position: absolute;
+      top: 0;
+      pointer-events: none;
+    }
+    /* Si es pieza izquierda, mostramos el lado izquierdo */
+    .puzzle-piece[data-side="left"] img { left: 0; object-position: left center; }
+    /* Si es pieza derecha, mostramos el lado derecho (moviéndola a la izquierda un 50%) */
+    .puzzle-piece[data-side="right"] img { left: -100%; object-position: right center; }
+
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+  </style>
+</head>
+
+<body class="jungle-bg min-h-screen flex flex-col items-center p-4">
+
+  <div class="w-full max-w-4xl flex justify-between items-center mb-8">
+    <a href="../index.html" class="bg-white hover:bg-slate-100 text-slate-600 px-4 py-2 rounded-xl font-bold border border-slate-200 shadow-sm transition flex items-center gap-2 text-sm">
+      ⬅ Salir
+    </a>
+    <div class="bg-green-100 text-green-800 px-6 py-2 rounded-full shadow-sm border border-green-200 font-bold text-xl">
+      🧩 Safari de Rompecabezas
+    </div>
+    <div class="w-20"></div>
+  </div>
+
+  <div class="flex flex-col items-center justify-start w-full max-w-4xl h-full gap-8">
+    
+    <div id="pairsGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 w-full">
+      </div>
+
+    <div class="bg-white/60 backdrop-blur-md rounded-3xl p-6 border-t-4 border-green-400 w-full shadow-xl">
+      <p class="text-center text-green-700 font-bold mb-4 uppercase text-sm tracking-widest">Une las mitades</p>
+      <div id="piecesPool" class="flex flex-wrap justify-center gap-4 min-h-[110px] p-2 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-300">
+        </div>
+    </div>
+
+  </div>
+
+  <script>
+    // --- SONIDOS ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      const now = audioCtx.currentTime;
+
+      if (type === 'snap') { // Clic satisfactorio
+        osc.frequency.setValueAtTime(800, now); osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+        gain.gain.setValueAtTime(0.3, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        osc.start(now); osc.stop(now + 0.2);
+      } else if (type === 'error') { // Sonido grave de error
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now);
+        gain.gain.setValueAtTime(0.3, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
+      }
+    }
+
+    // --- DATOS (Usando los mismos animales del juego anterior) ---
+    const allAnimals = [
+      { id: 'vaca', name: 'Vaca', img: 'https://cdn-icons-png.flaticon.com/512/1998/1998610.png' },
+      { id: 'cerdo', name: 'Cerdo', img: 'https://cdn-icons-png.flaticon.com/128/2931/2931513.png' },
+      { id: 'carnero', name: 'Oveja', img: 'https://cdn-icons-png.flaticon.com/128/8277/8277647.png' },
+      { id: 'gallina', name: 'Gallina', img: 'https://cdn-icons-png.flaticon.com/128/8204/8204496.png' },
+      { id: 'pollito', name: 'Pollito', img: 'https://cdn-icons-png.flaticon.com/128/7253/7253330.png' },
+      { id: 'caballo', name: 'Caballo', img: 'https://cdn-icons-png.flaticon.com/128/1998/1998679.png' },
+      { id: 'pato', name: 'Pato', img: 'https://cdn-icons-png.flaticon.com/128/2120/2120233.png' },
+      { id: 'pavo', name: 'Pavo', img: 'https://cdn-icons-png.flaticon.com/128/1998/1998807.png' },
+      { id: 'gallo', name: 'Gallo', img: 'https://cdn-icons-png.flaticon.com/128/3200/3200030.png' },
+      { id: 'cuy', name: 'Cuy', img: 'https://cdn-icons-png.flaticon.com/128/13507/13507872.png' },
+      { id: 'cabra', name: 'Cabra', img: 'https://cdn-icons-png.flaticon.com/128/1998/1998662.png' }
+    ];
+    
+    // Usaremos los primeros 6 para un grid de 3x2
+    const gameAnimals = allAnimals.slice(0, 6);
+    let matchesFound = 0;
+
+    // --- INICIALIZAR ---
+    function initGame() {
+      const grid = document.getElementById("pairsGrid");
+      const pool = document.getElementById("piecesPool");
+
+      // 1. Crear los huecos para pares en el grid
+      gameAnimals.forEach(() => {
+        const pairContainer = document.createElement("div");
+        pairContainer.className = "pair-container";
+        
+        // Hueco Izquierdo
+        const leftSlot = document.createElement("div");
+        leftSlot.className = "drop-slot";
+        leftSlot.dataset.side = "left";
+        setupDropZone(leftSlot);
+
+        // Divisor
+        const divider = document.createElement("div");
+        divider.className = "pair-divider";
+
+        // Hueco Derecho
+        const rightSlot = document.createElement("div");
+        rightSlot.className = "drop-slot";
+        rightSlot.dataset.side = "right";
+        setupDropZone(rightSlot);
+
+        pairContainer.appendChild(leftSlot);
+        pairContainer.appendChild(divider);
+        pairContainer.appendChild(rightSlot);
+        grid.appendChild(pairContainer);
+      });
+
+      // 2. Crear las piezas (mitades) y mezclarlas
+      let pieces = [];
+      gameAnimals.forEach(animal => {
+        pieces.push(createPiece(animal, "left"));
+        pieces.push(createPiece(animal, "right"));
+      });
+
+      pieces.sort(() => Math.random() - 0.5);
+      pieces.forEach(p => pool.appendChild(p));
+    }
+
+    // Función auxiliar para crear una pieza
+    function createPiece(animalData, side) {
+      const piece = document.createElement("div");
+      piece.className = "puzzle-piece";
+      piece.draggable = true;
+      piece.dataset.id = animalData.id;
+      piece.dataset.side = side;
+      piece.id = `piece-${animalData.id}-${side}-${Math.random().toString(36).substr(2, 5)}`; // ID único
+
+      // Usamos la imagen original, el CSS se encarga de recortarla
+      piece.innerHTML = `<img src="${animalData.img}" alt="${animalData.id} ${side}">`;
+
+      // Eventos Drag
+      piece.addEventListener("dragstart", e => {
+        e.dataTransfer.setData("pieceId", piece.id);
+        e.dataTransfer.setData("animalId", animalData.id);
+        e.dataTransfer.setData("side", side);
+        setTimeout(() => piece.style.opacity = '0.5', 0);
+      });
+      piece.addEventListener("dragend", () => piece.style.opacity = '1');
+      
+      return piece;
+    }
+
+    // Configurar zonas de drop
+    function setupDropZone(slot) {
+      slot.addEventListener("dragover", e => {
+        e.preventDefault();
+        // Solo permitir drop si está vacío
+        if (!slot.hasChildNodes()) slot.classList.add("hovered");
+      });
+      slot.addEventListener("dragleave", () => slot.classList.remove("hovered"));
+      slot.addEventListener("drop", e => handleDrop(e, slot));
+    }
+
+    // --- MANEJO DEL DROP ---
+    function handleDrop(e, slot) {
+      e.preventDefault();
+      slot.classList.remove("hovered");
+      if (slot.hasChildNodes()) return; // Ya ocupado
+
+      const draggedSide = e.dataTransfer.getData("side");
+      const slotSide = slot.dataset.side;
+
+      // Validación 1: ¿Coincide el lado? (Izq con Izq, Der con Der)
+      if (draggedSide !== slotSide) {
+        // Feedback sutil de error si intentan poner una cabeza en el lugar de la cola
+        playSound('error');
+        return; 
+      }
+
+      // Mover la pieza al hueco
+      const pieceId = e.dataTransfer.getData("pieceId");
+      const originalPiece = document.getElementById(pieceId);
+      originalPiece.classList.add("placed");
+      originalPiece.draggable = false; // Ya no se puede mover
+      slot.appendChild(originalPiece);
+
+      // Validación 2: ¿Se completó el par?
+      checkPairCompletion(slot.parentElement);
+    }
+
+    function checkPairCompletion(pairContainer) {
+      const leftSlot = pairContainer.querySelector('[data-side="left"]');
+      const rightSlot = pairContainer.querySelector('[data-side="right"]');
+
+      // Si ambos huecos tienen piezas...
+      if (leftSlot.hasChildNodes() && rightSlot.hasChildNodes()) {
+        const leftId = leftSlot.firstChild.dataset.id;
+        const rightId = rightSlot.firstChild.dataset.id;
+
+        if (leftId === rightId) {
+          // --- ACIERTO (Coinciden) ---
+          playSound('snap');
+          pairContainer.classList.add("matched");
+          matchesFound++;
+          if(matchesFound === gameAnimals.length) setTimeout(victory, 500);
+
+        } else {
+          // --- ERROR (No coinciden) ---
+          playSound('error');
+          pairContainer.classList.add("error");
+          
+          // Expulsar las piezas de vuelta al pool después de un segundo
+          setTimeout(() => {
+            const pool = document.getElementById("piecesPool");
+            
+            // Resetear piezas
+            [leftSlot.firstChild, rightSlot.firstChild].forEach(piece => {
+                piece.classList.remove("placed");
+                piece.draggable = true;
+                pool.appendChild(piece); // Volver al pool
+            });
+
+            pairContainer.classList.remove("error");
+          }, 1000);
+        }
+      }
+    }
+
+    function victory() {
+      confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+      Swal.fire({
+        title: "¡Safari Completado! 🦁🎉",
+        text: "¡Has unido a todos los animales!",
+        icon: "success",
+        confirmButtonText: "Jugar de nuevo",
+        confirmButtonColor: "#16a34a"
+      }).then(() => window.location.reload());
+    }
+
+    initGame();
+  </script>
+</body>
+</html>

@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>El Árbol Matemático</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/default.css">
+  <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/scroll-behaviour.min.js"></script>
+  <script>
+    MobileDragDrop.polyfill({
+      dragImageTranslateOverride: MobileDragDrop.scrollBehaviour.scrollBehaviourDragImageTranslateOverride
+    });
+  </script>
+
+  <style>
+    body { font-family: 'Fredoka', sans-serif; }
+
+    /* Fondo de naturaleza */
+    .nature-bg {
+      background-color: #bae6fd; /* Cielo */
+      background-image: linear-gradient(to bottom, #bae6fd 0%, #e0f2fe 60%, #86efac 60%, #4ade80 100%);
+      overflow: hidden; /* Para que no haya scroll si no es necesario */
+    }
+
+    /* EL ÁRBOL (Dibujado con CSS) */
+    .tree-trunk {
+      width: 60px;
+      height: 120px;
+      background: #854d0e; /* Marrón */
+      border-radius: 0 0 10px 10px;
+      /* Textura de madera */
+      background-image: repeating-linear-gradient(90deg, transparent, transparent 10px, rgba(0,0,0,0.1) 10px, rgba(0,0,0,0.1) 12px);
+      position: absolute;
+      bottom: -40px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1;
+    }
+
+    .tree-foliage {
+      width: 320px;
+      height: 320px;
+      background: #16a34a; /* Verde hoja */
+      border-radius: 50%;
+      position: relative;
+      z-index: 2;
+      box-shadow: inset -20px -20px 0 rgba(0,0,0,0.1), 0 10px 20px rgba(0,0,0,0.2);
+      /* Bordes irregulares con pseudo-elementos para parecer una nube */
+    }
+    .tree-foliage::before, .tree-foliage::after {
+      content: ''; position: absolute; background: #16a34a; border-radius: 50%; z-index: -1;
+    }
+    .tree-foliage::before { width: 200px; height: 200px; top: 40px; left: -60px; }
+    .tree-foliage::after { width: 200px; height: 200px; top: 40px; right: -60px; }
+
+    /* Zonas de destino (Círculos blancos con números) */
+    .number-spot {
+      width: 60px;
+      height: 60px;
+      background: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      font-weight: bold;
+      color: #333;
+      border: 3px dashed #cbd5e1;
+      position: absolute; /* Posicionamiento libre en el árbol */
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.1);
+      transition: all 0.3s;
+    }
+    .number-spot.hovered {
+      transform: scale(1.2);
+      border-color: #facc15;
+      background: #fef08a;
+    }
+    .number-spot.filled {
+      border: 4px solid #fff;
+      background: transparent; /* Se vuelve transparente para mostrar la ficha verde */
+      box-shadow: none;
+    }
+    .number-spot.filled span {
+        display: none; /* Ocultar el número cuando ya tiene la fruta */
+    }
+
+    /* Fichas de Fruta (Arrastrables) */
+    .fruit-token {
+      width: 65px;
+      height: 65px;
+      background: #86efac; /* Verde claro */
+      border: 3px solid #15803d; /* Borde verde oscuro */
+      border-radius: 50%;
+      cursor: grab;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+      transition: transform 0.2s;
+      /* Patrón de línea punteada interior */
+      background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='50' ry='50' stroke='%23333' stroke-width='1' stroke-dasharray='4%2c 4' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+    }
+    .fruit-token:active {
+      cursor: grabbing;
+      transform: scale(1.1);
+    }
+    .fruit-token.placed {
+      cursor: default;
+      width: 100%;
+      height: 100%;
+      box-shadow: none;
+      animation: bounceIn 0.5s;
+    }
+    
+    @keyframes bounceIn {
+      0% { transform: scale(0); }
+      50% { transform: scale(1.2); }
+      100% { transform: scale(1); }
+    }
+
+    /* Ajuste de tamaño de los emojis dentro de la ficha */
+    .mini-fruit {
+      font-size: 1.2rem;
+      line-height: 1;
+    }
+    /* Si hay muchas frutas, las hacemos más pequeñas */
+    .fruit-token[data-count="5"] .mini-fruit, 
+    .fruit-token[data-count="6"] .mini-fruit,
+    .fruit-token[data-count="7"] .mini-fruit { font-size: 0.9rem; }
+
+  </style>
+</head>
+
+<body class="nature-bg min-h-screen flex flex-col items-center justify-center p-4">
+
+  <div class="absolute top-4 left-4 right-4 flex justify-between items-center z-10">
+    <a href="../index.html" class="bg-white/80 hover:bg-white text-green-800 px-4 py-2 rounded-xl font-bold shadow-sm transition flex items-center gap-2 text-sm">
+      ⬅ Salir
+    </a>
+    <h1 class="text-xl md:text-2xl font-bold text-green-900 bg-white/60 px-6 py-2 rounded-full backdrop-blur">
+      🌳 Árbol Matemático
+    </h1>
+    <button onclick="window.location.reload()" class="bg-yellow-100 text-yellow-700 px-4 py-2 rounded-xl font-bold shadow-sm hover:bg-yellow-200 transition text-sm">
+      🔄 Cambiar Fruta
+    </button>
+  </div>
+
+  <div class="flex flex-col md:flex-row items-center justify-center gap-12 w-full max-w-5xl h-full mt-10">
+    
+    <div class="relative flex-shrink-0">
+      <div class="tree-foliage relative flex items-center justify-center" id="treeContainer">
+        <div class="tree-trunk"></div>
+        
+        </div>
+      <div class="w-32 h-6 bg-black/10 rounded-full absolute -bottom-10 left-1/2 -translate-x-1/2 blur-sm"></div>
+    </div>
+
+    <div class="bg-white/60 backdrop-blur-md rounded-3xl p-6 border-4 border-white shadow-xl w-full max-w-md">
+      <div class="flex items-center justify-center gap-2 mb-4">
+        <span class="text-2xl" id="basketEmoji">🧺</span>
+        <p class="text-green-800 font-bold uppercase text-xs tracking-widest">Cuenta y arrastra</p>
+      </div>
+      
+      <div id="fruitPool" class="flex flex-wrap justify-center gap-4">
+        </div>
+    </div>
+
+  </div>
+
+  <script>
+    // --- SONIDOS ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      const now = audioCtx.currentTime;
+
+      if (type === 'pop') {
+        osc.frequency.setValueAtTime(400, now); osc.frequency.linearRampToValueAtTime(600, now + 0.1);
+        gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.1);
+        osc.start(now); osc.stop(now + 0.1);
+      } else if (type === 'success') {
+        osc.type = 'triangle'; 
+        osc.frequency.setValueAtTime(500, now); osc.frequency.setValueAtTime(800, now + 0.2);
+        gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+        osc.start(now); osc.stop(now + 0.4);
+      } else if (type === 'error') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, now);
+        gain.gain.setValueAtTime(0.1, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+        osc.start(now); osc.stop(now + 0.2);
+      }
+    }
+
+    // --- CONFIGURACIÓN ---
+    // Posiciones "al azar" pero fijas para que queden bonitas en el árbol
+    const positions = [
+      { top: '20%', left: '50%' }, // Centro arriba
+      { top: '40%', left: '25%' }, // Izquierda
+      { top: '40%', left: '75%' }, // Derecha
+      { top: '65%', left: '35%' }, // Abajo izq
+      { top: '65%', left: '65%' }, // Abajo der
+      { top: '50%', left: '50%' }, // Centro
+      { top: '25%', left: '25%' }  // Arriba izq extra
+    ];
+
+    // Elegir fruta al azar (Manzana o Naranja)
+    const fruitType = Math.random() > 0.5 ? '🍎' : '🍊';
+    const numbers = [1, 2, 3, 4, 5, 6, 7]; // Números a jugar
+    let placedCount = 0;
+
+    // --- INICIALIZAR ---
+    function initGame() {
+      const tree = document.getElementById("treeContainer");
+      const pool = document.getElementById("fruitPool");
+      
+      // Actualizar emoji de la cesta
+      document.getElementById("basketEmoji").innerText = fruitType === '🍎' ? '🍎' : '🍊';
+
+      // 1. Crear Huecos en el Árbol
+      // Usamos solo los primeros N números según cuántas posiciones definimos (7)
+      const gameNumbers = numbers.slice(0, positions.length);
+      
+      gameNumbers.forEach((num, index) => {
+        const spot = document.createElement("div");
+        spot.className = "number-spot";
+        // Posicionamiento absoluto
+        spot.style.top = positions[index].top;
+        spot.style.left = positions[index].left;
+        spot.style.transform = "translate(-50%, -50%)";
+        spot.dataset.target = num;
+        
+        spot.innerHTML = `<span>${num}</span>`;
+
+        // Eventos Drop
+        spot.addEventListener("dragover", e => {
+          e.preventDefault();
+          if(!spot.classList.contains("filled")) spot.classList.add("hovered");
+        });
+        spot.addEventListener("dragleave", () => spot.classList.remove("hovered"));
+        spot.addEventListener("drop", e => handleDrop(e, spot));
+
+        tree.appendChild(spot);
+      });
+
+      // 2. Crear Fichas de Frutas
+      // Barajamos los números para que estén desordenados en la cesta
+      const shuffledNumbers = [...gameNumbers].sort(() => Math.random() - 0.5);
+
+      shuffledNumbers.forEach(num => {
+        const token = document.createElement("div");
+        token.className = "fruit-token";
+        token.draggable = true;
+        token.dataset.count = num;
+        token.id = `token-${num}`;
+        
+        // Generar las mini-frutas dentro
+        let fruitsHTML = "";
+        for(let i=0; i<num; i++) {
+          fruitsHTML += `<span class="mini-fruit">${fruitType}</span>`;
+        }
+        token.innerHTML = fruitsHTML;
+
+        // Eventos Drag
+        token.addEventListener("dragstart", e => {
+          playSound('pop');
+          e.dataTransfer.setData("count", num);
+          e.dataTransfer.setData("id", token.id);
+          setTimeout(() => token.style.opacity = '0.5', 0);
+        });
+        token.addEventListener("dragend", () => token.style.opacity = '1');
+
+        pool.appendChild(token);
+      });
+    }
+
+    // --- LÓGICA DROP ---
+    function handleDrop(e, spot) {
+      e.preventDefault();
+      spot.classList.remove("hovered");
+      if(spot.classList.contains("filled")) return;
+
+      const draggedCount = parseInt(e.dataTransfer.getData("count"));
+      const draggedId = e.dataTransfer.getData("id");
+      const targetNumber = parseInt(spot.dataset.target);
+
+      if (draggedCount === targetNumber) {
+        // CORRECTO
+        playSound('success');
+        spot.classList.add("filled");
+        
+        // Mover la ficha visualmente dentro del hueco
+        const originalToken = document.getElementById(draggedId);
+        // Clonamos para quitar eventos de drag y ajustar estilos
+        const placedToken = originalToken.cloneNode(true);
+        placedToken.draggable = false;
+        placedToken.classList.add("placed");
+        
+        spot.innerHTML = ""; // Borrar el número escrito
+        spot.appendChild(placedToken);
+        
+        originalToken.remove(); // Borrar de la cesta
+
+        placedCount++;
+        if(placedCount === positions.length) {
+          gameWin();
+        }
+
+      } else {
+        // INCORRECTO
+        playSound('error');
+        spot.style.borderColor = "#ef4444";
+        spot.style.backgroundColor = "#fee2e2";
+        setTimeout(() => {
+          spot.style.borderColor = "#cbd5e1";
+          spot.style.backgroundColor = "white";
+        }, 500);
+        
+        Swal.fire({
+          toast: true, position: 'top', icon: 'warning',
+          title: '¡Cuenta bien las frutas! 🤔', showConfirmButton: false, timer: 1500
+        });
+      }
+    }
+
+    function gameWin() {
+      confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+      Swal.fire({
+        title: "¡Cosecha Completa! 🍎🍊",
+        text: "Has colocado todas las frutas correctamente.",
+        icon: "success",
+        confirmButtonText: "Jugar de nuevo",
+        confirmButtonColor: "#16a34a"
+      }).then(() => window.location.reload());
+    }
+
+    initGame();
+  </script>
+</body>
+</html>
