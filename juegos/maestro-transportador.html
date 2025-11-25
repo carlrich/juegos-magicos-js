@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>El Maestro Transportador</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mobile-drag-drop@2.3.0-rc.2/scroll-behaviour.min.js"></script>
+  <script>
+    MobileDragDrop.polyfill({ dragImageTranslateOverride: MobileDragDrop.scrollBehaviour.scrollBehaviourDragImageTranslateOverride });
+  </script>
+
+  <style>
+    body { font-family: 'Fredoka', sans-serif; overflow-x: hidden; }
+
+    .blueprint-bg {
+      background-color: #f0f9ff;
+      background-image: 
+        linear-gradient(#bae6fd 1px, transparent 1px),
+        linear-gradient(90deg, #bae6fd 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    /* Tarjeta del Problema */
+    .angle-problem-card {
+      background: white;
+      border: 3px solid #cbd5e1;
+      border-radius: 20px;
+      padding: 15px;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      z-index: 1;
+    }
+    .angle-problem-card.solved { border-color: #22c55e; background-color: #f0fdf4; }
+
+    /* Contenedor del SVG del ángulo */
+    .angle-container {
+      width: 220px; height: 180px;
+      position: relative;
+      margin-bottom: 15px;
+      border-radius: 10px;
+      background: #f8fafc;
+      border: 2px dashed #e2e8f0;
+    }
+
+    /* El SVG del ángulo base */
+    .base-angle-svg {
+      position: absolute; top: 10px; left: 10px;
+      width: 200px; height: 200px;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    /* --- EL TRANSPORTADOR --- */
+    #protractor {
+      width: 200px; height: 200px;
+      cursor: grab;
+      filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+      touch-action: none; /* Vital para móviles */
+      position: absolute; /* Por defecto absoluto dentro de su padre */
+    }
+    
+    /* Estado mientras se arrastra (Flotando) */
+    #protractor.dragging {
+      cursor: grabbing;
+      opacity: 0.9;
+      position: fixed; /* Se sale del flujo para seguir al mouse */
+      z-index: 9999; /* Encima de todo */
+      pointer-events: none; /* Para detectar qué hay debajo al soltar */
+      transform: scale(1.05);
+    }
+
+    /* Estado acoplado en un ángulo (Snap) */
+    .angle-container #protractor {
+      top: 10px !important;
+      left: 10px !important;
+      position: absolute !important;
+      z-index: 10;
+    }
+
+    /* Dock (Casa del transportador) */
+    .protractor-dock {
+      width: 220px; height: 130px;
+      background: rgba(255,255,255,0.6);
+      border: 3px dashed #94a3b8;
+      border-radius: 20px;
+      display: flex; justify-content: center; align-items: center;
+      position: fixed; bottom: 20px;
+      backdrop-filter: blur(5px);
+      box-shadow: 0 -5px 20px rgba(0,0,0,0.1);
+      z-index: 50;
+    }
+    
+    /* Inputs */
+    .answer-input {
+      border: 3px solid #cbd5e1; border-radius: 10px; font-size: 1.2rem;
+      font-weight: bold; text-align: center; width: 80px; padding: 5px;
+      outline: none;
+    }
+    .check-btn {
+      background: #3b82f6; color: white; font-weight: bold;
+      padding: 8px 15px; border-radius: 10px; margin-top: 10px;
+    }
+  </style>
+</head>
+
+<body class="blueprint-bg min-h-screen flex flex-col items-center p-4 pb-40 relative">
+
+  <div class="w-full max-w-5xl flex justify-between items-center mb-8 mt-4 bg-white/90 p-4 rounded-2xl shadow-sm backdrop-blur">
+    <a href="../index.html" class="text-slate-500 hover:text-blue-600 font-bold flex items-center gap-2">
+      ⬅ Salir
+    </a>
+    <h1 class="text-2xl font-bold text-slate-700 flex items-center gap-2">
+      📏 El Maestro Transportador
+    </h1>
+    <button onclick="window.location.reload()" class="bg-blue-100 text-blue-600 px-4 py-2 rounded-xl font-bold hover:bg-blue-200 transition text-sm">
+      🔄 Nuevos Ángulos
+    </button>
+  </div>
+
+  <div id="problemsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 w-full max-w-5xl mb-8">
+    </div>
+
+  <div class="protractor-dock drop-zone" id="dockZone">
+    </div>
+
+
+  <script>
+    // --- SONIDOS ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      const now = audioCtx.currentTime;
+      if (type === 'snap') {
+        osc.frequency.setValueAtTime(200, now); osc.frequency.exponentialRampToValueAtTime(600, now + 0.1);
+        gain.gain.setValueAtTime(0.3, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.15); osc.start(now); osc.stop(now + 0.15);
+      } else if (type === 'success') {
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(500, now); gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.5); osc.start(now); osc.stop(now + 0.5);
+      } else if (type === 'error') {
+        osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); gain.gain.setValueAtTime(0.2, now); gain.gain.linearRampToValueAtTime(0.01, now + 0.3); osc.start(now); osc.stop(now + 0.3);
+      }
+    }
+
+    // --- SVG TRANSPORTADOR ---
+    function getProtractorSVG() {
+      const size = 200; const center = size / 2; const radius = size * 0.45;
+      let marks = '';
+      for (let i = 0; i <= 180; i++) {
+        const rad = (i * Math.PI) / 180;
+        const isMajor = i % 10 === 0;
+        const markLen = isMajor ? 15 : (i % 5 === 0 ? 10 : 5);
+        const x1 = center + radius * Math.cos(-rad); const y1 = center + radius * Math.sin(-rad);
+        const x2 = center + (radius - markLen) * Math.cos(-rad); const y2 = center + (radius - markLen) * Math.sin(-rad);
+        marks += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${isMajor ? '#1e293b' : '#64748b'}" stroke-width="${isMajor ? 2 : 1}" />`;
+        if (isMajor) {
+          const tRad = radius - 25;
+          const tx = center + tRad * Math.cos(-rad); const ty = center + tRad * Math.sin(-rad);
+          let rot = i > 90 ? 180 : 0;
+          marks += `<text x="${tx}" y="${ty}" font-size="9" font-weight="normal" fill="#1e293b" text-anchor="middle" dominant-baseline="middle" transform="rotate(${rot}, ${tx}, ${ty})">${i}</text>`;
+        }
+      }
+      // Importante: Eliminamos draggable="true" porque usamos custom drag
+      return `
+        <svg id="protractor" viewBox="0 0 ${size} ${size}" xmlns="http://www.w3.org/2000/svg">
+          <g opacity="0.95">
+            <path d="M ${center-radius} ${center} A ${radius} ${radius} 0 0 1 ${center+radius} ${center} Z" fill="rgba(255,255,255,0.9)" stroke="#334155" stroke-width="2"/>
+            <line x1="${center-radius}" y1="${center}" x2="${center+radius}" y2="${center}" stroke="#334155" stroke-width="2" />
+            <circle cx="${center}" cy="${center}" r="4" fill="none" stroke="#ef4444" stroke-width="2"/>
+            <line x1="${center}" y1="${center-10}" x2="${center}" y2="${center+10}" stroke="#ef4444" stroke-width="2"/>
+            <line x1="${center-10}" y1="${center}" x2="${center+10}" y2="${center}" stroke="#ef4444" stroke-width="2"/>
+            ${marks}
+          </g>
+        </svg>
+      `;
+    }
+
+    function generateBaseAngleSVG(degrees) {
+      const size = 200; const center = size / 2; const len = size * 0.4;
+      const rad = degrees * (Math.PI / 180);
+      const ex1 = center + len; const ey1 = center;
+      const ex2 = center + len * Math.cos(-rad); const ey2 = center + len * Math.sin(-rad);
+      const arcR = 30;
+      const ax = center + arcR * Math.cos(-rad); const ay = center + arcR * Math.sin(-rad);
+      const large = degrees > 180 ? 1 : 0;
+      const d = `M ${center+arcR} ${center} A ${arcR} ${arcR} 0 ${large} 0 ${ax} ${ay}`;
+      return `
+        <svg class="base-angle-svg" viewBox="0 0 ${size} ${size}">
+          <line x1="${center}" y1="${center}" x2="${ex1}" y2="${ey1}" stroke="#334155" stroke-width="4" stroke-linecap="round" />
+          <line x1="${center}" y1="${center}" x2="${ex2}" y2="${ey2}" stroke="#334155" stroke-width="4" stroke-linecap="round" />
+          <path d="${d}" fill="none" stroke="#f59e0b" stroke-width="3" stroke-dasharray="4,4"/>
+          <circle cx="${center}" cy="${center}" r="5" fill="#334155"/>
+        </svg>`;
+    }
+
+    // --- LÓGICA DE ARRASTRE PERSONALIZADO (SIN DRAG API) ---
+    let isDragging = false;
+    let dragItem = null;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    function initDrag(element) {
+      const startDrag = (e) => {
+        e.preventDefault(); // Evitar scroll
+        isDragging = true;
+        dragItem = element;
+        
+        const clientX = e.clientX || e.touches[0].clientX;
+        const clientY = e.clientY || e.touches[0].clientY;
+        
+        const rect = dragItem.getBoundingClientRect();
+        offsetX = clientX - rect.left;
+        offsetY = clientY - rect.top;
+
+        dragItem.classList.add('dragging');
+        moveDrag(e); // Mover inmediatamente a la posición
+      };
+
+      element.addEventListener('mousedown', startDrag);
+      element.addEventListener('touchstart', startDrag, { passive: false });
+    }
+
+    function moveDrag(e) {
+      if (!isDragging || !dragItem) return;
+      e.preventDefault();
+
+      const clientX = e.clientX || e.touches[0].clientX;
+      const clientY = e.clientY || e.touches[0].clientY;
+
+      // Mover usando fixed position
+      dragItem.style.left = (clientX - offsetX) + 'px';
+      dragItem.style.top = (clientY - offsetY) + 'px';
+    }
+
+    function endDrag(e) {
+      if (!isDragging || !dragItem) return;
+      isDragging = false;
+      
+      dragItem.classList.remove('dragging');
+      
+      // Detectar dónde se soltó
+      const clientX = e.clientX || e.changedTouches[0].clientX;
+      const clientY = e.clientY || e.changedTouches[0].clientY;
+      
+      // Ocultar temporalmente para ver qué hay debajo
+      dragItem.style.display = 'none';
+      const elemBelow = document.elementFromPoint(clientX, clientY);
+      dragItem.style.display = 'block';
+
+      // Buscar si cayó en una zona de ángulo
+      const dropZone = elemBelow ? elemBelow.closest('.angle-container') : null;
+      const dockZone = elemBelow ? elemBelow.closest('.protractor-dock') : null;
+
+      if (dropZone) {
+        // SNAPPING: Pegar al contenedor del ángulo
+        playSound('snap');
+        dropZone.appendChild(dragItem);
+        // Resetear estilos inline para que el CSS controle la posición (top:10px, left:10px)
+        dragItem.style.position = ''; 
+        dragItem.style.top = '';
+        dragItem.style.left = '';
+      } else {
+        // Volver al dock
+        const dock = document.getElementById('dockZone');
+        dock.appendChild(dragItem);
+        dragItem.style.position = '';
+        dragItem.style.top = '';
+        dragItem.style.left = '';
+      }
+      
+      dragItem = null;
+    }
+
+    // Eventos globales para mover y soltar
+    document.addEventListener('mousemove', moveDrag);
+    document.addEventListener('touchmove', moveDrag, { passive: false });
+    document.addEventListener('mouseup', endDrag);
+    document.addEventListener('touchend', endDrag);
+
+
+    // --- INICIALIZACIÓN DEL JUEGO ---
+    let totalProblems = 6;
+    let solvedCount = 0;
+
+    function getRandomInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+    function initGame() {
+      const grid = document.getElementById("problemsGrid");
+      grid.innerHTML = ""; solvedCount = 0;
+      
+      const dock = document.getElementById("dockZone");
+      dock.innerHTML = getProtractorSVG();
+      
+      // Iniciar la lógica de arrastre en el nuevo transportador
+      const protractor = document.getElementById('protractor');
+      initDrag(protractor);
+
+      const angles = [getRandomInt(20, 70), 90, getRandomInt(110, 160), getRandomInt(15, 85), getRandomInt(95, 175), getRandomInt(30, 150)];
+
+      angles.forEach((angle, index) => {
+        const card = document.createElement("div");
+        card.className = "angle-problem-card";
+        card.dataset.realAngle = angle;
+        card.id = `problem-${index}`;
+        card.innerHTML = `
+          <div class="angle-container" id="container-${index}">
+            ${generateBaseAngleSVG(angle)}
+          </div>
+          <div class="flex items-center gap-2">
+            <input type="number" class="answer-input" placeholder="?" min="0" max="180">
+            <span class="text-xl font-bold text-slate-500">°</span>
+          </div>
+          <button class="check-btn" onclick="checkAnswer('${card.id}')">Comprobar</button>
+        `;
+        grid.appendChild(card);
+      });
+    }
+
+    window.checkAnswer = function(cardId) {
+      const card = document.getElementById(cardId);
+      const input = card.querySelector('.answer-input');
+      const btn = card.querySelector('.check-btn');
+      const userAngle = parseInt(input.value);
+      const realAngle = parseInt(card.dataset.realAngle);
+
+      if (isNaN(userAngle)) { Swal.fire({ toast: true, position: 'top', icon: 'warning', title: 'Escribe una medida.', showConfirmButton: false, timer: 1500 }); return; }
+
+      if (Math.abs(userAngle - realAngle) <= 3) {
+        playSound('success');
+        card.classList.add('solved');
+        input.disabled = true; btn.disabled = true; btn.innerText = "¡Correcto!"; btn.style.backgroundColor = "#22c55e";
+        solvedCount++;
+        if(solvedCount === totalProblems) {
+           confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+           Swal.fire({ title: "¡Maestro! 📏", text: "Mediciones perfectas.", icon: "success" }).then(() => initGame());
+        }
+      } else {
+        playSound('error');
+        input.style.borderColor = "#ef4444";
+        Swal.fire({ toast: true, position: 'top', icon: 'error', title: 'Intenta medir mejor.', showConfirmButton: false, timer: 1500 });
+        setTimeout(() => input.style.borderColor = "#cbd5e1", 2000);
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', initGame);
+  </script>
+</body>
+</html>
