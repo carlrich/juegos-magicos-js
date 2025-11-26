@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A leer y a Escribir</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Fredoka', sans-serif;
+      background-color: #f0f9ff; /* Azulito claro de fondo */
+      background-image: radial-gradient(#bae6fd 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    .game-container {
+      background-color: rgba(255, 255, 255, 0.95);
+      border-radius: 25px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+      border: 4px solid #bae6fd;
+    }
+
+    /* Estilo de cada fila de oración */
+    .sentence-row {
+      display: flex;
+      flex-wrap: wrap; /* Si es muy larga, baja a la siguiente línea */
+      align-items: flex-end; /* Alinea el texto con la base de las imágenes */
+      gap: 8px;
+      padding: 15px;
+      border-bottom: 2px dashed #e2e8f0;
+      font-size: 1.5rem;
+      color: #334155;
+    }
+
+    /* Contenedor vertical de Imagen + Input */
+    .img-input-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: -5px; /* Ajuste fino para alinear con el texto */
+    }
+
+    .img-input-block img {
+      height: 60px; /* Tamaño fijo para las imágenes */
+      width: auto;
+      object-fit: contain;
+      margin-bottom: 5px;
+      filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1));
+    }
+
+    .img-input-block input {
+      font-family: 'Fredoka', sans-serif;
+      font-size: 1.2rem;
+      text-align: center;
+      border: 2px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 4px;
+      width: 100px;
+      transition: all 0.3s;
+      outline: none;
+    }
+
+    .img-input-block input:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    }
+
+    /* Estados de validación */
+    .img-input-block input.correct {
+      border-color: #22c55e;
+      background-color: #dcfce7;
+      color: #15803d;
+    }
+    .img-input-block input.incorrect {
+      border-color: #ef4444;
+      background-color: #fee2e2;
+    }
+
+    .text-part {
+        padding-bottom: 5px; /* Levantar un poco el texto */
+    }
+
+  </style>
+</head>
+
+<body class="min-h-screen p-4 md:p-8 flex justify-center">
+
+  <div class="game-container w-full max-w-4xl p-6">
+    
+    <header class="text-center mb-8">
+      <h1 class="text-4xl font-bold text-blue-600 mb-2">A leer y a Escribir 📝</h1>
+      <p class="text-lg text-slate-500">Lee las oraciones y escribe el nombre de los dibujos.</p>
+    </header>
+
+    <div id="sentences-list" class="flex flex-col gap-2 mb-8 max-h-[70vh] overflow-y-auto pr-2">
+      </div>
+
+    <div class="text-center">
+      <button onclick="checkAllAnswers()" class="bg-blue-500 hover:bg-blue-600 text-white font-bold text-xl py-3 px-8 rounded-full shadow-lg transition-transform active:scale-95 flex items-center gap-2 mx-auto">
+        ✅ Comprobar Mis Respuestas
+      </button>
+    </div>
+
+  </div>
+
+  <script>
+    // --- 1. BASE DE DATOS DE ORACIONES ---
+    // Definimos las respuestas esperadas. Para facilitar, usamos una sola palabra clave.
+    const sentencesData = [
+      {
+        parts: [
+          { type: 'text', content: 'Ese ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/8758/8758506.png', answer: 'oso', hint: 'oso' },
+          { type: 'text', content: ' es de mi ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/4598/4598956.png', answer: 'hijo', hint: 'hijo' },
+          { type: 'text', content: '.' }
+        ]
+      },
+      {
+        parts: [
+          { type: 'text', content: 'Yo aseo la ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/2355/2355400.png', answer: 'mesa', hint: 'mesa' },
+          { type: 'text', content: '.' }
+        ]
+      },
+      {
+        parts: [
+          { type: 'input', img: 'https://i.pinimg.com/736x/e0/7f/47/e07f4795371fc5da1a3cd1f2b13b80b6.jpg', answer: 'elmo', hint: 'Elmo' },
+          { type: 'text', content: ' mima a mí ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/4598/4598956.png', answer: 'hijo', hint: 'hijo' },
+          { type: 'text', content: '.' }
+        ]
+      },
+      {
+        parts: [
+          { type: 'text', content: 'Papá y yo comimos ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/14465/14465166.png', answer: 'brocoli', hint: 'brócoli' },
+          { type: 'text', content: '.' }
+        ]
+      },
+      {
+        parts: [
+          { type: 'text', content: 'Mamá puso ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/4711/4711526.png', answer: 'sal', hint: 'sal' },
+          { type: 'text', content: ' a la ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/6293/6293782.png', answer: 'sopa', hint: 'sopa' },
+          { type: 'text', content: '.' }
+        ]
+      },
+      {
+        parts: [
+          { type: 'text', content: 'El ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/9098/9098849.png', answer: 'burro', hint: 'burro' },
+          { type: 'text', content: ' lame la ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/1686/1686546.png', answer: 'miel', hint: 'miel' },
+          { type: 'text', content: '.' }
+        ]
+      },
+      {
+        parts: [
+          { type: 'text', content: 'Lola y yo hicimos una ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/2402/2402478.png', answer: 'fiesta', hint: 'fiesta' },
+          { type: 'text', content: '.' }
+        ]
+      },
+      {
+        parts: [
+          { type: 'text', content: 'Ismael limpia la ' },
+          { type: 'input', img: 'https://img.freepik.com/vector-gratis/plantilla-fondo-interior-dormitorio-dibujos-animados-acogedora-habitacion-moderna-luz-manana_33099-171.jpg?semt=ais_hybrid&w=740&q=80', answer: 'habitacion', hint: 'habitación' }, // Aceptamos sin tilde
+          { type: 'text', content: '.' }
+        ]
+      },
+      {
+        parts: [
+          { type: 'text', content: 'Vimos un ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/2931/2931519.png', answer: 'tigre', hint: 'tigre' },
+          { type: 'text', content: '.' }
+        ]
+      },
+      {
+        parts: [
+          { type: 'text', content: 'La mula sale a la ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/11420/11420840.png', answer: 'montaña', hint: 'montaña' },
+          { type: 'text', content: '.' }
+        ]
+      },
+      {
+        parts: [
+          { type: 'text', content: 'El ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/512/869/869869.png', answer: 'sol', hint: 'sol' },
+          { type: 'text', content: ' hoy salió.' }
+        ]
+      },
+      {
+        parts: [
+          { type: 'text', content: 'Paúl limpia su ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/2775/2775770.png', answer: 'mano', hint: 'mano' }, // Usamos singular para simplificar
+          { type: 'text', content: '.' }
+        ]
+      },
+      {
+        parts: [
+          { type: 'text', content: 'Mi hermano tiene una ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/3714/3714324.png', answer: 'bicicleta', hint: 'bicicleta' },
+          { type: 'text', content: ' nueva.' }
+        ]
+      },
+      {
+        parts: [
+          { type: 'text', content: 'El ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/2083/2083677.png', answer: 'platano', hint: 'plátano' }, // Aceptamos sin tilde
+          { type: 'text', content: ' está delicioso.' }
+        ]
+      },
+      {
+        parts: [
+          { type: 'text', content: 'Le compré un ramo de ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/2366/2366138.png', answer: 'rosas', hint: 'rosas' },
+          { type: 'text', content: '.' }
+        ]
+      },
+       {
+        parts: [
+          { type: 'text', content: 'Preparé un ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/2454/2454297.png', answer: 'pastel', hint: 'pastel' },
+          { type: 'text', content: ' para mi abuela.' }
+        ]
+      },
+      {
+        parts: [
+          { type: 'text', content: 'La ' },
+          { type: 'input', img: 'https://cdn-icons-png.flaticon.com/128/619/619153.png', answer: 'casa', hint: 'casa' },
+          { type: 'text', content: ' de Pedro es muy bonita.' }
+        ]
+      }
+    ];
+
+    let totalInputs = 0;
+
+    // --- 2. FUNCIÓN PARA GENERAR EL HTML ---
+    function renderSentences() {
+      const listContainer = document.getElementById('sentences-list');
+      
+      sentencesData.forEach((sentence, index) => {
+        const row = document.createElement('div');
+        row.className = 'sentence-row';
+
+        sentence.parts.forEach(part => {
+          if (part.type === 'text') {
+            // Es un trozo de texto
+            const span = document.createElement('span');
+            span.className = 'text-part';
+            span.textContent = part.content;
+            row.appendChild(span);
+          } else if (part.type === 'input') {
+            // Es un bloque de Imagen + Input
+            totalInputs++;
+            const block = document.createElement('div');
+            block.className = 'img-input-block';
+
+            const img = document.createElement('img');
+            img.src = part.img;
+            img.alt = part.hint;
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.dataset.answer = part.answer; // Guardamos la respuesta correcta en el elemento
+            // Permitir tildes si la respuesta las requiere, pero el juego aceptará sin ellas también
+            input.placeholder = "...";
+
+            block.appendChild(img);
+            block.appendChild(input);
+            row.appendChild(block);
+          }
+        });
+
+        listContainer.appendChild(row);
+      });
+    }
+
+    // --- 3. FUNCIÓN DE COMPROBACIÓN ---
+    function checkAllAnswers() {
+      const allInputs = document.querySelectorAll('.img-input-block input');
+      let correctCount = 0;
+      let filledCount = 0;
+
+      allInputs.forEach(input => {
+        // Normalizar: minúsculas y quitar espacios extras
+        let userAnswer = input.value.trim().toLowerCase();
+        
+        // Truco: Reemplazar vocales con tilde por sin tilde para ser flexible
+        userAnswer = userAnswer.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        
+        const correctAnswer = input.dataset.answer.toLowerCase();
+        
+        if (input.value.trim() !== "") {
+            filledCount++;
+        }
+
+        // Resetear clases
+        input.classList.remove('correct', 'incorrect');
+
+        if (userAnswer === correctAnswer) {
+          input.classList.add('correct');
+          correctCount++;
+        } else if (input.value.trim() !== "") {
+          input.classList.add('incorrect');
+        }
+      });
+
+      // Mensajes de feedback
+      if (filledCount < totalInputs) {
+         Swal.fire({
+          icon: 'warning',
+          title: '¡Faltan palabras!',
+          text: 'Por favor, completa todos los espacios antes de comprobar.',
+          confirmButtonColor: '#3b82f6'
+        });
+      } else if (correctCount === totalInputs) {
+        confetti({ particleCount: 200, spread: 100, origin: { y: 0.6 } });
+        Swal.fire({
+          icon: 'success',
+          title: '¡Excelente trabajo! 🌟',
+          text: 'Has completado todas las oraciones correctamente.',
+          confirmButtonColor: '#22c55e'
+        });
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Casi lo tienes...',
+          text: `Tienes ${correctCount} de ${totalInputs} palabras correctas. ¡Revisa las que están en rojo!`,
+          confirmButtonColor: '#ef4444'
+        });
+      }
+    }
+
+    // Inicializar el juego al cargar
+    renderSentences();
+
+  </script>
+</body>
+</html>
