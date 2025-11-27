@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Completa con Vocales</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap');
+    body {
+      font-family: 'Fredoka', sans-serif;
+      background-color: #f0f9ff;
+    }
+    .word-card {
+      background-color: #ffffff;
+      border-radius: 1rem;
+      padding: 1.5rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+    }
+    .word-image {
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+    }
+    .letter-box {
+      width: 40px;
+      height: 40px;
+      font-size: 1.5rem;
+      text-align: center;
+      border: 2px solid #bae6fd;
+      border-radius: 0.5rem;
+      outline: none;
+      text-transform: uppercase;
+    }
+    .letter-box:focus {
+      border-color: #0ea5e9;
+    }
+    .correct {
+      border-color: #22c55e;
+      color: #22c55e;
+      background-color: #dcfce7;
+    }
+    .incorrect {
+      border-color: #ef4444;
+      color: #ef4444;
+      background-color: #fee2e2;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center p-4">
+
+  <h1 class="text-4xl font-bold text-center text-sky-600 mb-8">¡Completa con Vocales!</h1>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-4xl mb-8">
+
+    <div class="word-card">
+      <img src="https://img.freepik.com/vector-gratis/lindo-oso-sentado-agitando-mano-cartoon-vector-icono-ilustracion-animal-naturaleza-icono-aislado-plano_138676-8410.jpg?semt=ais_hybrid&w=740&q=80" alt="Oso" class="word-image">
+      <div class="flex gap-2 items-center text-3xl font-bold text-gray-700">
+        <input type="text" maxlength="1" class="letter-box" data-vowel="O">
+        <span>S</span>
+        <input type="text" maxlength="1" class="letter-box" data-vowel="O">
+      </div>
+    </div>
+
+    <div class="word-card">
+      <img src="https://img.freepik.com/vector-gratis/icono-vectorial-dibujos-animados-espejo-ilustracion-icono-objeto-belleza-vector-plano-aislado_138676-13656.jpg?semt=ais_hybrid&w=740&q=80" alt="Espejo" class="word-image">
+      <div class="flex gap-2 items-center text-3xl font-bold text-gray-700">
+        <input type="text" maxlength="1" class="letter-box" data-vowel="E">
+        <span>S P</span>
+        <input type="text" maxlength="1" class="letter-box" data-vowel="E">
+        <span>J</span>
+        <input type="text" maxlength="1" class="letter-box" data-vowel="O">
+      </div>
+    </div>
+
+    <div class="word-card">
+      <img src="https://img.freepik.com/vector-premium/ilustracion-dibujos-animados-adhesivo-iman-herradura-sobre-fondo-azul_337879-734.jpg?semt=ais_hybrid&w=740&q=80" alt="Imán" class="word-image">
+      <div class="flex gap-2 items-center text-3xl font-bold text-gray-700">
+        <input type="text" maxlength="1" class="letter-box" data-vowel="I">
+        <span>M</span>
+        <input type="text" maxlength="1" class="letter-box" data-vowel="Á">
+        <span>N</span>
+      </div>
+    </div>
+
+    <div class="word-card">
+      <img src="https://img.freepik.com/vector-gratis/cute-bee-flying-cartoon-vector-icono-ilustracion-concepto-icono-naturaleza-animal-aislado-vector-premium_138676-6016.jpg?semt=ais_hybrid&w=740&q=80" alt="Abeja" class="word-image">
+      <div class="flex gap-2 items-center text-3xl font-bold text-gray-700">
+        <input type="text" maxlength="1" class="letter-box" data-vowel="A">
+        <span>B</span>
+        <input type="text" maxlength="1" class="letter-box" data-vowel="E">
+        <span>J</span>
+        <input type="text" maxlength="1" class="letter-box" data-vowel="A">
+      </div>
+    </div>
+
+    <div class="word-card">
+      <img src="https://img.freepik.com/vector-gratis/escena-oceano-castillos-arena-isla_1308-46125.jpg?semt=ais_hybrid&w=740&q=80" alt="Isla" class="word-image">
+      <div class="flex gap-2 items-center text-3xl font-bold text-gray-700">
+        <input type="text" maxlength="1" class="letter-box" data-vowel="I">
+        <span>S L</span>
+        <input type="text" maxlength="1" class="letter-box" data-vowel="A">
+      </div>
+    </div>
+
+    <div class="word-card">
+      <img src="https://img.freepik.com/vector-gratis/arbol-pegatina-hojas-verdes-sobre-fondo-blanco_1308-62192.jpg?semt=ais_hybrid&w=740&q=80" alt="Árbol" class="word-image">
+      <div class="flex gap-2 items-center text-3xl font-bold text-gray-700">
+        <input type="text" maxlength="1" class="letter-box" data-vowel="Á">
+        <span>R B</span>
+        <input type="text" maxlength="1" class="letter-box" data-vowel="O">
+        <span>L</span>
+      </div>
+    </div>
+
+  </div>
+
+  <button onclick="checkAnswers()" class="bg-sky-500 hover:bg-sky-600 text-white font-bold py-3 px-8 rounded-full shadow-lg transition-transform active:scale-95 text-xl">
+    Comprobar
+  </button>
+
+  <script>
+    function checkAnswers() {
+      const letterBoxes = document.querySelectorAll('.letter-box');
+      let allCorrect = true;
+
+      letterBoxes.forEach(box => {
+        const userAnswer = box.value.trim().toUpperCase();
+        const correctAnswer = box.dataset.vowel;
+
+        box.classList.remove('correct', 'incorrect');
+
+        if (userAnswer === correctAnswer) {
+          box.classList.add('correct');
+        } else {
+          box.classList.add('incorrect');
+          allCorrect = false;
+        }
+      });
+
+      if (allCorrect) {
+        Swal.fire({
+          title: '¡Fantástico!',
+          text: '¡Has completado todas las palabras correctamente!',
+          icon: 'success',
+          confirmButtonText: '¡Genial!',
+          confirmButtonColor: '#22c55e',
+          backdrop: `
+            rgba(0,0,123,0.4)
+            url("https://sweetalert2.github.io/images/nyan-cat.gif")
+            left top
+            no-repeat
+          `
+        });
+      } else {
+        Swal.fire({
+          title: '¡Casi!',
+          text: 'Algunas vocales no son correctas. ¡Inténtalo de nuevo!',
+          icon: 'error',
+          confirmButtonText: 'Reintentar',
+          confirmButtonColor: '#ef4444'
+        });
+      }
+    }
+
+    // Auto-focus next input
+    const boxes = document.querySelectorAll('.letter-box');
+    boxes.forEach((box, index) => {
+      box.addEventListener('input', () => {
+        if (box.value.length === 1) {
+          const nextBox = boxes[index + 1];
+          if (nextBox) {
+            nextBox.focus();
+          }
+        }
+      });
+    });
+  </script>
+
+</body>
+</html>
